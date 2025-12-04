@@ -87,16 +87,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'captureScreenshot') {
     const { bookmarkId, url } = request;
     
-    // First, try to find a tab with this URL
-    chrome.tabs.query({ url }, async (tabs) => {
-      if (chrome.runtime.lastError) {
-        sendResponse({ success: false, error: chrome.runtime.lastError.message });
-        return;
-      }
-      
-      if (tabs.length > 0 && tabs[0]?.id) {
-        // Found a tab with this URL, capture it
-        try {
+    // Handle screenshot capture asynchronously
+    (async () => {
+      try {
+        // First, try to find a tab with this URL
+        const tabs = await chrome.tabs.query({ url });
+        
+        if (tabs.length > 0 && tabs[0]?.id && tabs[0]?.windowId) {
+          // Found a tab with this URL, capture it
           const dataUrl = await chrome.tabs.captureVisibleTab(tabs[0].windowId, {
             format: 'png',
             quality: 80
@@ -113,84 +111,65 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           
           await chrome.storage.local.set({ screenshots });
           sendResponse({ success: true, dataUrl });
-        } catch (error) {
-          console.error('Failed to capture screenshot:', error);
-          sendResponse({ success: false, error: String(error) });
-        }
-      } else {
-        // No tab found with this URL, create one and capture it
-        chrome.tabs.create({ url, active: false }, async (tab) => {
-          if (chrome.runtime.lastError) {
-            sendResponse({ success: false, error: chrome.runtime.lastError.message });
-            return;
-          }
+        } else {
+          // No tab found with this URL, create one and capture it
+          const tab = await chrome.tabs.create({ url, active: false });
           
           if (!tab.id) {
             sendResponse({ success: false, error: 'Failed to create tab' });
             return;
           }
           
-          let responseHandled = false;
-          let timeoutId: number;
-          
           // Wait for the tab to load
-          const loadListener = async (tabId: number, changeInfo: chrome.tabs.TabChangeInfo) => {
-            if (responseHandled || tabId !== tab.id || changeInfo.status !== 'complete') {
-              return;
-            }
-            
-            responseHandled = true;
-            clearTimeout(timeoutId);
-            chrome.tabs.onUpdated.removeListener(loadListener);
-            
-            try {
-              const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, {
-                format: 'png',
-                quality: 80
-              });
-              
-              const result = await chrome.storage.local.get('screenshots');
-              const screenshots: ScreenshotData = result.screenshots || {};
-              
-              screenshots[bookmarkId] = {
-                dataUrl,
-                timestamp: Date.now(),
-                url
-              };
-              
-              await chrome.storage.local.set({ screenshots });
-              
-              // Close the tab we created
+          await new Promise<void>((resolve, reject) => {
+            const timeoutId = setTimeout(() => {
+              chrome.tabs.onUpdated.removeListener(loadListener);
               if (tab.id) {
-                chrome.tabs.remove(tab.id);
+                chrome.tabs.remove(tab.id).catch(() => {});
               }
-              
-              sendResponse({ success: true, dataUrl });
-            } catch (error) {
-              console.error('Failed to capture screenshot:', error);
-              if (tab.id) {
-                chrome.tabs.remove(tab.id);
+              reject(new Error('Timeout waiting for page to load'));
+            }, 30000); // 30 second timeout
+            
+            const loadListener = (tabId: number, changeInfo: chrome.tabs.TabChangeInfo) => {
+              if (tabId === tab.id && changeInfo.status === 'complete') {
+                clearTimeout(timeoutId);
+                chrome.tabs.onUpdated.removeListener(loadListener);
+                resolve();
               }
-              sendResponse({ success: false, error: String(error) });
-            }
+            };
+            
+            chrome.tabs.onUpdated.addListener(loadListener);
+          });
+          
+          // Capture screenshot
+          const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, {
+            format: 'png',
+            quality: 80
+          });
+          
+          const result = await chrome.storage.local.get('screenshots');
+          const screenshots: ScreenshotData = result.screenshots || {};
+          
+          screenshots[bookmarkId] = {
+            dataUrl,
+            timestamp: Date.now(),
+            url
           };
           
-          chrome.tabs.onUpdated.addListener(loadListener);
+          await chrome.storage.local.set({ screenshots });
           
-          // Set a timeout to prevent hanging
-          timeoutId = setTimeout(() => {
-            if (responseHandled) return;
-            
-            responseHandled = true;
-            chrome.tabs.onUpdated.removeListener(loadListener);
-            if (tab.id) {
-              chrome.tabs.remove(tab.id);
-            }
-            sendResponse({ success: false, error: 'Timeout waiting for page to load' });
-          }, 30000); // 30 second timeout
-        });
+          // Close the tab we created
+          if (tab.id) {
+            await chrome.tabs.remove(tab.id);
+          }
+          
+          sendResponse({ success: true, dataUrl });
+        }
+      } catch (error) {
+        console.error('Failed to capture screenshot:', error);
+        sendResponse({ success: false, error: String(error) });
       }
-    });
+    })();
     
     // Return true to indicate we'll send response asynchronously
     return true;
@@ -199,16 +178,25 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'deleteScreenshot') {
     const { bookmarkId } = request;
     
-    chrome.storage.local.get('screenshots', async (result) => {
-      const screenshots: ScreenshotData = result.screenshots || {};
-      delete screenshots[bookmarkId];
-      
-      await chrome.storage.local.set({ screenshots });
-      sendResponse({ success: true });
-    });
+    (async () => {
+      try {
+        const result = await chrome.storage.local.get('screenshots');
+        const screenshots: ScreenshotData = result.screenshots || {};
+        delete screenshots[bookmarkId];
+        
+        await chrome.storage.local.set({ screenshots });
+        sendResponse({ success: true });
+      } catch (error) {
+        console.error('Failed to delete screenshot:', error);
+        sendResponse({ success: false, error: String(error) });
+      }
+    })();
     
     return true;
   }
+  
+  // Return false for unknown actions
+  return false;
 });
 
 // Clean up old visited URLs periodically using chrome.alarms API
