@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build && node copy-manifest.mjs",
+    "build:watch": "vite build --watch",
     "preview": "vite preview",
     "generate-icons": "node generate-icons.mjs"
   },
