@@ -1,13 +1,5 @@
 import { useState } from 'react';
-
-interface Bookmark {
-  id: string;
-  title: string;
-  url?: string;
-  dateAdded?: number;
-  screenshot?: string;
-  children?: Bookmark[];
-}
+import type { Bookmark } from '../types';
 
 interface BookmarkListProps {
   items: Bookmark[];
@@ -54,7 +46,7 @@ function BookmarkList({ items, onDelete, onCaptureScreenshot, onDeleteScreenshot
   };
 
   const isFolder = (item: Bookmark) => {
-    return !item.url && item.children !== undefined;
+    return !item.url && Array.isArray(item.children);
   };
 
   if (items.length === 0) {

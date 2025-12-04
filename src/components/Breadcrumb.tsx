@@ -1,7 +1,4 @@
-interface BreadcrumbItem {
-  id: string;
-  title: string;
-}
+import type { BreadcrumbItem } from '../types';
 
 interface BreadcrumbProps {
   path: BreadcrumbItem[];

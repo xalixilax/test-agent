@@ -3,21 +3,7 @@ import BookmarkList from './components/BookmarkList';
 import SearchBar from './components/SearchBar';
 import AddBookmark from './components/AddBookmark';
 import Breadcrumb from './components/Breadcrumb';
-
-interface Bookmark {
-  id: string;
-  title: string;
-  url?: string;
-  dateAdded?: number;
-  children?: Bookmark[];
-  screenshot?: string; // Screenshot data URL
-  parentId?: string;
-}
-
-interface BreadcrumbItem {
-  id: string;
-  title: string;
-}
+import type { Bookmark, BreadcrumbItem } from './types';
 
 function App() {
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
@@ -119,22 +105,21 @@ function App() {
 
   const deleteBookmark = (id: string) => {
     if (typeof chrome !== 'undefined' && chrome.bookmarks) {
-      chrome.bookmarks.get(id, (results) => {
-        if (results && results[0]) {
-          const item = results[0];
-          if (item.url) {
-            // It's a bookmark, just remove it
-            chrome.bookmarks.remove(id, () => {
-              loadBookmarks();
-            });
-          } else {
-            // It's a folder, remove it recursively
-            chrome.bookmarks.removeTree(id, () => {
-              loadBookmarks();
-            });
-          }
-        }
-      });
+      // Find the item in the current folder to check if it's a folder or bookmark
+      const currentItems = getCurrentFolderItems();
+      const item = currentItems.find(i => i.id === id);
+      
+      if (item && !item.url && Array.isArray(item.children)) {
+        // It's a folder, remove it recursively
+        chrome.bookmarks.removeTree(id, () => {
+          loadBookmarks();
+        });
+      } else {
+        // It's a bookmark, just remove it
+        chrome.bookmarks.remove(id, () => {
+          loadBookmarks();
+        });
+      }
     }
   };
 
