@@ -23,10 +23,16 @@ function AddBookmark({ onAdd }: AddBookmarkProps) {
     return (
       <button
         onClick={() => setIsExpanded(true)}
-        className="w-full py-3 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center justify-center gap-2"
+        className="w-full py-3 px-6 rounded-xl font-semibold transition-smooth hover-lift hover-glow flex items-center justify-center gap-3 border-2 border-dashed group"
+        style={{
+          background: 'linear-gradient(135deg, rgba(255, 140, 66, 0.1), rgba(212, 98, 47, 0.1))',
+          borderColor: 'var(--color-accent-primary)',
+          color: 'var(--color-accent-secondary)',
+          fontFamily: 'Syne, sans-serif',
+        }}
       >
         <svg
-          className="w-5 h-5"
+          className="w-6 h-6 transition-transform group-hover:rotate-90"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -34,24 +40,35 @@ function AddBookmark({ onAdd }: AddBookmarkProps) {
           <path
             strokeLinecap="round"
             strokeLinejoin="round"
-            strokeWidth={2}
+            strokeWidth={2.5}
             d="M12 4v16m8-8H4"
           />
         </svg>
-        Add New Bookmark
+        Add to Vault
       </button>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3 p-4 bg-gray-50 rounded-lg">
+    <form onSubmit={handleSubmit} className="space-y-3 p-5 rounded-xl border animate-scale-in" style={{
+      background: 'rgba(45, 33, 24, 0.5)',
+      borderColor: 'var(--color-border)',
+    }}>
       <div>
         <input
           type="text"
           placeholder="Bookmark title"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-4 py-3 rounded-lg focus:outline-none transition-smooth border-2"
+          style={{
+            background: 'var(--color-bg-secondary)',
+            borderColor: 'var(--color-border)',
+            color: 'var(--color-text-primary)',
+            fontFamily: 'Crimson Pro, serif',
+          }}
+          onFocus={(e) => e.target.style.borderColor = 'var(--color-accent-primary)'}
+          onBlur={(e) => e.target.style.borderColor = 'var(--color-border)'}
           required
         />
       </div>
@@ -61,16 +78,29 @@ function AddBookmark({ onAdd }: AddBookmarkProps) {
           placeholder="https://example.com"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-4 py-3 rounded-lg focus:outline-none transition-smooth border-2"
+          style={{
+            background: 'var(--color-bg-secondary)',
+            borderColor: 'var(--color-border)',
+            color: 'var(--color-text-primary)',
+            fontFamily: 'Crimson Pro, serif',
+          }}
+          onFocus={(e) => e.target.style.borderColor = 'var(--color-accent-primary)'}
+          onBlur={(e) => e.target.style.borderColor = 'var(--color-border)'}
           required
         />
       </div>
-      <div className="flex gap-2">
+      <div className="flex gap-3 pt-2">
         <button
           type="submit"
-          className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+          className="flex-1 py-3 px-4 rounded-lg font-semibold transition-smooth hover-lift"
+          style={{
+            background: 'linear-gradient(135deg, var(--color-accent-primary), var(--color-accent-tertiary))',
+            color: 'white',
+            fontFamily: 'Syne, sans-serif',
+          }}
         >
-          Add
+          ✦ Add
         </button>
         <button
           type="button"
@@ -79,7 +109,13 @@ function AddBookmark({ onAdd }: AddBookmarkProps) {
             setTitle('');
             setUrl('');
           }}
-          className="flex-1 py-2 px-4 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors font-medium"
+          className="flex-1 py-3 px-4 rounded-lg font-semibold transition-smooth hover-lift border-2"
+          style={{
+            background: 'transparent',
+            borderColor: 'var(--color-border)',
+            color: 'var(--color-text-secondary)',
+            fontFamily: 'Syne, sans-serif',
+          }}
         >
           Cancel
         </button>
