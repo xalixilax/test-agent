@@ -7,33 +7,21 @@ interface BreadcrumbProps {
 
 function Breadcrumb({ path, onNavigate }: BreadcrumbProps) {
   return (
-    <nav className="flex items-center gap-2 text-sm mb-4 overflow-x-auto">
+    <nav className="flex items-center gap-2 text-xs sm:text-sm overflow-x-auto pb-1">
       {path.map((item, index) => (
-        <div key={item.id} className="flex items-center gap-2">
+        <div key={item.id} className="flex items-center gap-2 flex-shrink-0">
           <button
             onClick={() => onNavigate(item.id)}
-            className={`px-3 py-1 rounded transition-colors ${
+            className={`px-3 py-1 font-bold border-2 border-black transition-all ${
               index === path.length - 1
-                ? 'bg-blue-100 text-blue-700 font-semibold'
-                : 'text-blue-600 hover:bg-blue-50'
+                ? 'bg-black text-white'
+                : 'bg-white hover:bg-gray-100'
             }`}
           >
             {item.title || 'Bookmarks'}
           </button>
           {index < path.length - 1 && (
-            <svg
-              className="w-4 h-4 text-gray-400 flex-shrink-0"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 5l7 7-7 7"
-              />
-            </svg>
+            <span className="text-xl font-black">›</span>
           )}
         </div>
       ))}

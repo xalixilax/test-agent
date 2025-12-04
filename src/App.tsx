@@ -12,11 +12,50 @@ function App() {
   const [screenshots, setScreenshots] = useState<Record<string, any>>({});
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [breadcrumbPath, setBreadcrumbPath] = useState<BreadcrumbItem[]>([]);
+  const [currentTab, setCurrentTab] = useState<{
+    isBookmarked: boolean;
+    bookmark?: {
+      id: string;
+      title: string;
+      url: string;
+      hasScreenshot: boolean;
+    };
+  } | null>(null);
 
   useEffect(() => {
     loadBookmarks();
     loadScreenshots();
+    checkCurrentTab();
   }, []);
+
+  const checkCurrentTab = () => {
+    if (typeof chrome !== "undefined" && chrome.runtime) {
+      chrome.runtime.sendMessage({ action: "getCurrentTab" }, (response) => {
+        if (chrome.runtime.lastError) {
+          console.error(
+            "Error checking current tab:",
+            chrome.runtime.lastError.message
+          );
+          return;
+        }
+        if (response?.success) {
+          setCurrentTab({
+            isBookmarked: response.isBookmarked,
+            bookmark: response.bookmark,
+          });
+
+          // Auto-capture screenshot if bookmarked and no screenshot exists
+          if (
+            response.isBookmarked &&
+            response.bookmark &&
+            !response.bookmark.hasScreenshot
+          ) {
+            captureScreenshot(response.bookmark.id, response.bookmark.url);
+          }
+        }
+      });
+    }
+  };
 
   const loadScreenshots = () => {
     if (typeof chrome !== "undefined" && chrome.storage) {
@@ -149,6 +188,8 @@ function App() {
           }
           if (response?.success) {
             console.log("Screenshot captured successfully");
+            // Refresh current tab state to update the UI
+            checkCurrentTab();
           } else {
             console.error("Failed to capture screenshot:", response?.error);
           }
@@ -274,63 +315,98 @@ function App() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-gray-50">
-        <div className="text-xl text-gray-600">Loading bookmarks...</div>
+      <div
+        className="flex items-center justify-center h-screen"
+        style={{ background: "var(--color-bg)" }}
+      >
+        <div className="text-2xl font-bold">LOADING...</div>
       </div>
     );
   }
 
   return (
-    <div className="w-full h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      <div className="container mx-auto p-6 max-w-2xl">
-        <div className="bg-white rounded-lg shadow-xl overflow-hidden">
-          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-bold text-white mb-2">
-                  📚 Bookmark Manager
-                </h1>
-                <p className="text-blue-100">
-                  Organize and search your bookmarks with ease
-                </p>
+    <div
+      className="w-full min-h-screen"
+      style={{ background: "var(--color-bg)" }}
+    >
+      <div className="h-full max-w-7xl mx-auto">
+        {/* Compact header for small screens, larger for desktop */}
+        <div
+          className="p-2 sm:p-4 md:p-6 border-b-4 border-black"
+          style={{ background: "var(--color-primary)" }}
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-lg sm:text-2xl md:text-3xl font-black text-white">
+                BOOKMARKS
+              </h1>
+              <p className="hidden md:block text-sm text-white font-bold mt-1">
+                YOUR LINK COLLECTION
+              </p>
+            </div>
+            <button
+              onClick={openFullScreen}
+              className="btn-brutal bg-white px-3 py-2 text-xs sm:text-sm font-black"
+              title="Open in full screen"
+            >
+              EXPAND
+            </button>
+          </div>
+        </div>
+
+        {/* Current tab status indicator */}
+        {currentTab && currentTab.isBookmarked && currentTab.bookmark && (
+          <div
+            className="mx-2 sm:mx-4 md:mx-6 mt-3 sm:mt-4 p-3 sm:p-4 border-3 border-black shadow-brutal"
+            style={{ background: "var(--color-success)" }}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-start gap-2 flex-1 min-w-0">
+                <span className="text-xl sm:text-2xl shrink-0">⭐</span>
+                <div className="flex-1 min-w-0">
+                  <p className="font-black text-xs sm:text-sm">
+                    CURRENT PAGE IS BOOKMARKED!
+                  </p>
+                  <p
+                    className="font-bold text-xs mt-1 truncate"
+                    title={currentTab.bookmark.title}
+                  >
+                    {currentTab.bookmark.title}
+                  </p>
+                </div>
               </div>
-              <button
-                onClick={openFullScreen}
-                className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
-                title="Open in full screen"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-5 w-5"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
+              {!currentTab.bookmark.hasScreenshot && (
+                <button
+                  onClick={() =>
+                    captureScreenshot(
+                      currentTab.bookmark!.id,
+                      currentTab.bookmark!.url
+                    )
+                  }
+                  className="btn-brutal px-2 sm:px-3 py-1 sm:py-2 text-xs font-black bg-white shrink-0"
+                  title="Capture screenshot for this page"
                 >
-                  <path
-                    fillRule="evenodd"
-                    d="M3 4a1 1 0 011-1h4a1 1 0 010 2H6.414l2.293 2.293a1 1 0 11-1.414 1.414L5 6.414V8a1 1 0 01-2 0V4zm9 1a1 1 0 010-2h4a1 1 0 011 1v4a1 1 0 01-2 0V6.414l-2.293 2.293a1 1 0 11-1.414-1.414L13.586 5H12zm-9 7a1 1 0 012 0v1.586l2.293-2.293a1 1 0 111.414 1.414L6.414 15H8a1 1 0 010 2H4a1 1 0 01-1-1v-4zm13-1a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 010-2h1.586l-2.293-2.293a1 1 0 111.414-1.414L15 13.586V12a1 1 0 011-1z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                <span className="hidden sm:inline">Full Screen</span>
-              </button>
+                  📷 CAPTURE
+                </button>
+              )}
             </div>
           </div>
+        )}
 
-          <div className="p-6 space-y-6">
-            <AddBookmark onAdd={addBookmark} />
-            <SearchBar searchTerm={searchTerm} onSearch={setSearchTerm} />
-            {!searchTerm && (
-              <Breadcrumb path={breadcrumbPath} onNavigate={navigateToFolder} />
-            )}
-            <BookmarkList
-              items={filteredBookmarks}
-              onDelete={deleteBookmark}
-              onCaptureScreenshot={captureScreenshot}
-              onDeleteScreenshot={deleteScreenshot}
-              onFolderClick={navigateToFolder}
-              onMove={moveBookmark}
-            />
-          </div>
+        <div className="p-2 sm:p-4 md:p-6 space-y-3 sm:space-y-4">
+          <AddBookmark onAdd={addBookmark} />
+          <SearchBar searchTerm={searchTerm} onSearch={setSearchTerm} />
+          {!searchTerm && (
+            <Breadcrumb path={breadcrumbPath} onNavigate={navigateToFolder} />
+          )}
+          <BookmarkList
+            items={filteredBookmarks}
+            onDelete={deleteBookmark}
+            onCaptureScreenshot={captureScreenshot}
+            onDeleteScreenshot={deleteScreenshot}
+            onFolderClick={navigateToFolder}
+            onMove={moveBookmark}
+          />
         </div>
       </div>
     </div>

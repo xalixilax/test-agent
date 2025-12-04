@@ -23,35 +23,23 @@ function AddBookmark({ onAdd }: AddBookmarkProps) {
     return (
       <button
         onClick={() => setIsExpanded(true)}
-        className="w-full py-3 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center justify-center gap-2"
+        className="w-full py-3 px-4 btn-brutal font-black text-sm sm:text-base"
+        style={{ background: 'var(--color-secondary)' }}
       >
-        <svg
-          className="w-5 h-5"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M12 4v16m8-8H4"
-          />
-        </svg>
-        Add New Bookmark
+        + ADD BOOKMARK
       </button>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3 p-4 bg-gray-50 rounded-lg">
+    <form onSubmit={handleSubmit} className="space-y-3 p-4 card-brutal" style={{ background: 'var(--color-white)' }}>
       <div>
         <input
           type="text"
-          placeholder="Bookmark title"
+          placeholder="TITLE"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full input-brutal text-sm sm:text-base"
           required
         />
       </div>
@@ -61,16 +49,17 @@ function AddBookmark({ onAdd }: AddBookmarkProps) {
           placeholder="https://example.com"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full input-brutal text-sm sm:text-base"
           required
         />
       </div>
       <div className="flex gap-2">
         <button
           type="submit"
-          className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+          className="flex-1 py-2 px-4 btn-brutal font-black text-sm sm:text-base"
+          style={{ background: 'var(--color-success)' }}
         >
-          Add
+          ADD
         </button>
         <button
           type="button"
@@ -79,9 +68,10 @@ function AddBookmark({ onAdd }: AddBookmarkProps) {
             setTitle('');
             setUrl('');
           }}
-          className="flex-1 py-2 px-4 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors font-medium"
+          className="flex-1 py-2 px-4 btn-brutal font-black text-sm sm:text-base"
+          style={{ background: 'var(--color-white)' }}
         >
-          Cancel
+          CANCEL
         </button>
       </div>
     </form>

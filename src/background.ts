@@ -84,6 +84,45 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 
 // Listen for messages from popup to manually capture screenshots
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === 'getCurrentTab') {
+    // Get current active tab and check if it's bookmarked
+    (async () => {
+      try {
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (tabs.length > 0 && tabs[0].url) {
+          const url = tabs[0].url;
+          const bookmarks = await chrome.bookmarks.search({ url });
+          
+          if (bookmarks.length > 0) {
+            const bookmark = bookmarks[0];
+            const result = await chrome.storage.local.get('screenshots');
+            const screenshots: ScreenshotData = result.screenshots || {};
+            
+            sendResponse({ 
+              success: true, 
+              isBookmarked: true,
+              bookmark: {
+                id: bookmark.id,
+                title: bookmark.title,
+                url: bookmark.url,
+                hasScreenshot: !!screenshots[bookmark.id]
+              }
+            });
+          } else {
+            sendResponse({ success: true, isBookmarked: false });
+          }
+        } else {
+          sendResponse({ success: false, error: 'No active tab found' });
+        }
+      } catch (error) {
+        console.error('Failed to get current tab:', error);
+        sendResponse({ success: false, error: String(error) });
+      }
+    })();
+    
+    return true;
+  }
+  
   if (request.action === 'captureScreenshot') {
     const { bookmarkId, url } = request;
     
