@@ -131,7 +131,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           }
           
           let responseHandled = false;
-          let timeoutId: NodeJS.Timeout;
+          let timeoutId: number;
           
           // Wait for the tab to load
           const loadListener = async (tabId: number, changeInfo: chrome.tabs.TabChangeInfo) => {
