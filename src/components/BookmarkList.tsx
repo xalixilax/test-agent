@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { Bookmark } from '../types';
 
 interface BookmarkListProps {
@@ -14,6 +14,15 @@ function BookmarkList({ items, onDelete, onCaptureScreenshot, onDeleteScreenshot
   const [selectedScreenshot, setSelectedScreenshot] = useState<string | null>(null);
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => setOpenMenuId(null);
+    if (openMenuId) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [openMenuId]);
 
   const handleOpenBookmark = (url: string) => {
     if (typeof chrome !== 'undefined' && chrome.tabs) {
@@ -104,6 +113,9 @@ function BookmarkList({ items, onDelete, onCaptureScreenshot, onDeleteScreenshot
                       }}
                       className="w-8 h-8 flex flex-col items-center justify-center gap-1 hover:bg-gray-100 border-2 border-black"
                       style={{ background: 'var(--color-white)' }}
+                      aria-label="Bookmark actions menu"
+                      aria-expanded={openMenuId === item.id}
+                      aria-haspopup="true"
                     >
                       <div className="w-1 h-1 bg-black rounded-full"></div>
                       <div className="w-1 h-1 bg-black rounded-full"></div>
@@ -111,7 +123,12 @@ function BookmarkList({ items, onDelete, onCaptureScreenshot, onDeleteScreenshot
                     </button>
                     
                     {openMenuId === item.id && (
-                      <div className="absolute right-0 mt-1 w-40 border-3 border-black z-10 shadow-brutal" style={{ background: 'var(--color-white)' }}>
+                      <div 
+                        className="absolute right-0 mt-1 w-40 border-3 border-black z-10 shadow-brutal" 
+                        style={{ background: 'var(--color-white)' }}
+                        role="menu"
+                        aria-label="Bookmark actions"
+                      >
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -119,6 +136,7 @@ function BookmarkList({ items, onDelete, onCaptureScreenshot, onDeleteScreenshot
                             setOpenMenuId(null);
                           }}
                           className="w-full px-3 py-2 text-left text-xs font-bold hover:bg-gray-100 border-b-2 border-black flex items-center gap-2"
+                          role="menuitem"
                         >
                           📷 SCREENSHOT
                         </button>
@@ -130,6 +148,7 @@ function BookmarkList({ items, onDelete, onCaptureScreenshot, onDeleteScreenshot
                               setOpenMenuId(null);
                             }}
                             className="w-full px-3 py-2 text-left text-xs font-bold hover:bg-gray-100 border-b-2 border-black flex items-center gap-2"
+                            role="menuitem"
                           >
                             🗑️ DEL SCREENSHOT
                           </button>
@@ -142,6 +161,7 @@ function BookmarkList({ items, onDelete, onCaptureScreenshot, onDeleteScreenshot
                           }}
                           className="w-full px-3 py-2 text-left text-xs font-bold hover:bg-red-100 flex items-center gap-2"
                           style={{ color: 'var(--color-danger)' }}
+                          role="menuitem"
                         >
                           ❌ DELETE
                         </button>
@@ -178,7 +198,7 @@ function BookmarkList({ items, onDelete, onCaptureScreenshot, onDeleteScreenshot
                         e.preventDefault();
                         handleOpenBookmark(item.url!);
                       }}
-                      className="text-xs font-bold hover:underline block mb-2 break-all"
+                      className="text-xs font-bold hover:underline block mb-2 break-words"
                       title={item.url}
                       style={{ color: 'var(--color-primary)' }}
                     >
