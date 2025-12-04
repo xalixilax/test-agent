@@ -7,8 +7,25 @@ interface ScreenshotData {
   };
 }
 
-// Track visited URLs to detect first-time visits
-const visitedUrls = new Set<string>();
+interface VisitedUrlsData {
+  urls: string[];
+}
+
+// Helper function to get visited URLs from storage
+async function getVisitedUrls(): Promise<Set<string>> {
+  const result = await chrome.storage.local.get('visitedUrls');
+  const data: VisitedUrlsData = result.visitedUrls || { urls: [] };
+  return new Set(data.urls);
+}
+
+// Helper function to save visited URLs to storage
+async function addVisitedUrl(url: string): Promise<void> {
+  const visitedUrls = await getVisitedUrls();
+  visitedUrls.add(url);
+  await chrome.storage.local.set({ 
+    visitedUrls: { urls: Array.from(visitedUrls) } 
+  });
+}
 
 // Listen for tab updates to capture screenshots on first visit
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
@@ -32,30 +49,31 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
         const result = await chrome.storage.local.get('screenshots');
         const screenshots: ScreenshotData = result.screenshots || {};
         
-        // If no screenshot exists and URL hasn't been visited in this session
+        // Get visited URLs from storage
+        const visitedUrls = await getVisitedUrls();
+        
+        // If no screenshot exists and URL hasn't been visited
         if (!screenshots[bookmark.id] && !visitedUrls.has(url)) {
-          visitedUrls.add(url);
+          await addVisitedUrl(url);
           
-          // Capture screenshot after a short delay to ensure page is rendered
-          setTimeout(async () => {
-            try {
-              const dataUrl = await chrome.tabs.captureVisibleTab(undefined, {
-                format: 'png',
-                quality: 80
-              });
-              
-              screenshots[bookmark.id] = {
-                dataUrl,
-                timestamp: Date.now(),
-                url
-              };
-              
-              await chrome.storage.local.set({ screenshots });
-              console.log(`Screenshot captured for bookmark: ${bookmark.title}`);
-            } catch (error) {
-              console.error('Failed to capture screenshot:', error);
-            }
-          }, 1000);
+          // Capture screenshot using chrome.webNavigation or after DOM is ready
+          try {
+            const dataUrl = await chrome.tabs.captureVisibleTab(undefined, {
+              format: 'png',
+              quality: 80
+            });
+            
+            screenshots[bookmark.id] = {
+              dataUrl,
+              timestamp: Date.now(),
+              url
+            };
+            
+            await chrome.storage.local.set({ screenshots });
+            console.log(`Screenshot captured for bookmark: ${bookmark.title}`);
+          } catch (error) {
+            console.error('Failed to capture screenshot:', error);
+          }
         }
       }
     } catch (error) {
@@ -117,7 +135,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 });
 
-// Clear visited URLs cache periodically (every 30 minutes)
-setInterval(() => {
-  visitedUrls.clear();
-}, 30 * 60 * 1000);
+// Clean up old visited URLs periodically using chrome.alarms API
+chrome.alarms.create('cleanupVisitedUrls', { periodInMinutes: 30 });
+
+chrome.alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name === 'cleanupVisitedUrls') {
+    // Clear visited URLs cache to allow re-capturing screenshots
+    await chrome.storage.local.set({ visitedUrls: { urls: [] } });
+    console.log('Cleared visited URLs cache');
+  }
+});

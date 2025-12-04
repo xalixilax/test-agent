@@ -7,7 +7,8 @@
     "bookmarks",
     "storage",
     "tabs",
-    "activeTab"
+    "activeTab",
+    "alarms"
   ],
   "host_permissions": [
     "<all_urls>"
