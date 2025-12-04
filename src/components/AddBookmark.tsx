@@ -23,50 +23,23 @@ function AddBookmark({ onAdd }: AddBookmarkProps) {
     return (
       <button
         onClick={() => setIsExpanded(true)}
-        className="w-full py-3 px-6 rounded-xl font-semibold transition-smooth hover-lift hover-glow flex items-center justify-center gap-3 border-2 border-dashed group"
-        style={{
-          background: 'linear-gradient(135deg, rgba(255, 140, 66, 0.1), rgba(212, 98, 47, 0.1))',
-          borderColor: 'var(--color-accent-primary)',
-          color: 'var(--color-accent-secondary)',
-          fontFamily: 'Syne, sans-serif',
-        }}
+        className="w-full py-3 px-4 btn-brutal font-black text-sm sm:text-base"
+        style={{ background: 'var(--color-secondary)' }}
       >
-        <svg
-          className="w-6 h-6 transition-transform group-hover:rotate-90"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2.5}
-            d="M12 4v16m8-8H4"
-          />
-        </svg>
-        Add to Vault
+        + ADD BOOKMARK
       </button>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3 p-5 rounded-xl border animate-scale-in" style={{
-      background: 'rgba(45, 33, 24, 0.5)',
-      borderColor: 'var(--color-border)',
-    }}>
+    <form onSubmit={handleSubmit} className="space-y-3 p-4 card-brutal" style={{ background: 'var(--color-white)' }}>
       <div>
         <input
           type="text"
-          placeholder="Bookmark title"
+          placeholder="TITLE"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          className="w-full px-4 py-3 rounded-lg focus:outline-none transition-smooth border-2"
-          style={{
-            background: 'var(--color-bg-secondary)',
-            borderColor: 'var(--color-border)',
-            color: 'var(--color-text-primary)',
-            fontFamily: 'Crimson Pro, serif',
-          }}
+          className="w-full input-brutal text-sm sm:text-base"
           required
         />
       </div>
@@ -76,27 +49,17 @@ function AddBookmark({ onAdd }: AddBookmarkProps) {
           placeholder="https://example.com"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          className="w-full px-4 py-3 rounded-lg focus:outline-none transition-smooth border-2"
-          style={{
-            background: 'var(--color-bg-secondary)',
-            borderColor: 'var(--color-border)',
-            color: 'var(--color-text-primary)',
-            fontFamily: 'Crimson Pro, serif',
-          }}
+          className="w-full input-brutal text-sm sm:text-base"
           required
         />
       </div>
-      <div className="flex gap-3 pt-2">
+      <div className="flex gap-2">
         <button
           type="submit"
-          className="flex-1 py-3 px-4 rounded-lg font-semibold transition-smooth hover-lift"
-          style={{
-            background: 'linear-gradient(135deg, var(--color-accent-primary), var(--color-accent-tertiary))',
-            color: 'white',
-            fontFamily: 'Syne, sans-serif',
-          }}
+          className="flex-1 py-2 px-4 btn-brutal font-black text-sm sm:text-base"
+          style={{ background: 'var(--color-success)' }}
         >
-          ✦ Add
+          ADD
         </button>
         <button
           type="button"
@@ -105,15 +68,10 @@ function AddBookmark({ onAdd }: AddBookmarkProps) {
             setTitle('');
             setUrl('');
           }}
-          className="flex-1 py-3 px-4 rounded-lg font-semibold transition-smooth hover-lift border-2"
-          style={{
-            background: 'transparent',
-            borderColor: 'var(--color-border)',
-            color: 'var(--color-text-secondary)',
-            fontFamily: 'Syne, sans-serif',
-          }}
+          className="flex-1 py-2 px-4 btn-brutal font-black text-sm sm:text-base"
+          style={{ background: 'var(--color-white)' }}
         >
-          Cancel
+          CANCEL
         </button>
       </div>
     </form>
