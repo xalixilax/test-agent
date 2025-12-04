@@ -87,9 +87,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'captureScreenshot') {
     const { bookmarkId, url } = request;
     
-    // Query for the active tab
-    chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
-      if (tabs[0]?.id) {
+    // First, try to find a tab with this URL
+    chrome.tabs.query({ url }, async (tabs) => {
+      if (tabs.length > 0 && tabs[0]?.id) {
+        // Found a tab with this URL, capture it
         try {
           const dataUrl = await chrome.tabs.captureVisibleTab(tabs[0].windowId, {
             format: 'png',
@@ -112,7 +113,62 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           sendResponse({ success: false, error: String(error) });
         }
       } else {
-        sendResponse({ success: false, error: 'No active tab found' });
+        // No tab found with this URL, create one and capture it
+        chrome.tabs.create({ url, active: false }, async (tab) => {
+          if (!tab.id) {
+            sendResponse({ success: false, error: 'Failed to create tab' });
+            return;
+          }
+          
+          // Wait for the tab to load
+          const loadListener = async (tabId: number, changeInfo: chrome.tabs.TabChangeInfo) => {
+            if (tabId === tab.id && changeInfo.status === 'complete') {
+              chrome.tabs.onUpdated.removeListener(loadListener);
+              
+              try {
+                const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, {
+                  format: 'png',
+                  quality: 80
+                });
+                
+                const result = await chrome.storage.local.get('screenshots');
+                const screenshots: ScreenshotData = result.screenshots || {};
+                
+                screenshots[bookmarkId] = {
+                  dataUrl,
+                  timestamp: Date.now(),
+                  url
+                };
+                
+                await chrome.storage.local.set({ screenshots });
+                
+                // Close the tab we created
+                if (tab.id) {
+                  chrome.tabs.remove(tab.id);
+                }
+                
+                sendResponse({ success: true, dataUrl });
+              } catch (error) {
+                console.error('Failed to capture screenshot:', error);
+                if (tab.id) {
+                  chrome.tabs.remove(tab.id);
+                }
+                sendResponse({ success: false, error: String(error) });
+              }
+            }
+          };
+          
+          chrome.tabs.onUpdated.addListener(loadListener);
+          
+          // Set a timeout to prevent hanging
+          setTimeout(() => {
+            chrome.tabs.onUpdated.removeListener(loadListener);
+            if (tab.id) {
+              chrome.tabs.remove(tab.id);
+            }
+            sendResponse({ success: false, error: 'Timeout waiting for page to load' });
+          }, 30000); // 30 second timeout
+        });
       }
     });
     

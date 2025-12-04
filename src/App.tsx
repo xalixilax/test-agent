@@ -85,6 +85,10 @@ function App() {
       chrome.runtime.sendMessage(
         { action: 'captureScreenshot', bookmarkId, url },
         (response) => {
+          if (chrome.runtime.lastError) {
+            console.error('Error sending message:', chrome.runtime.lastError.message);
+            return;
+          }
           if (response?.success) {
             console.log('Screenshot captured successfully');
           } else {
@@ -100,6 +104,10 @@ function App() {
       chrome.runtime.sendMessage(
         { action: 'deleteScreenshot', bookmarkId },
         (response) => {
+          if (chrome.runtime.lastError) {
+            console.error('Error sending message:', chrome.runtime.lastError.message);
+            return;
+          }
           if (response?.success) {
             console.log('Screenshot deleted successfully');
           }
