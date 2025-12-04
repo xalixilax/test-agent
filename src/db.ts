@@ -1,8 +1,28 @@
 // SQLite WASM database utility for storing screenshots, comments, and ratings
 import sqlite3InitModule from '@sqlite.org/sqlite-wasm';
 
-let db: any = null;
-let sqlite3: any = null;
+interface SQLite3 {
+  version: { libVersion: string };
+  oo1: {
+    DB: any;
+  };
+}
+
+interface Database {
+  exec: (sql: string) => void;
+  prepare: (sql: string) => Statement;
+}
+
+interface Statement {
+  bind: (params: any[]) => void;
+  step: () => boolean;
+  get: (opts?: any) => any[];
+  reset: () => void;
+  finalize: () => void;
+}
+
+let db: Database | null = null;
+let sqlite3: SQLite3 | null = null;
 
 export async function initDatabase() {
   if (db) {
@@ -143,7 +163,7 @@ export async function getScreenshot(bookmarkId: string): Promise<{ dataUrl: stri
 export async function getAllScreenshots(): Promise<Record<string, { dataUrl: string; timestamp: number; url: string }>> {
   if (!db) await initDatabase();
 
-  const screenshots: Record<string, any> = {};
+  const screenshots: Record<string, { dataUrl: string; timestamp: number; url: string }> = {};
   const stmt = db.prepare('SELECT bookmark_id, data_url, timestamp, url FROM screenshots');
   try {
     while (stmt.step()) {
@@ -193,7 +213,7 @@ export async function deleteScreenshot(bookmarkId: string): Promise<void> {
 export async function getComments(bookmarkId: string): Promise<Array<{ id: string; bookmarkId: string; text: string; timestamp: number }>> {
   if (!db) await initDatabase();
 
-  const comments: Array<any> = [];
+  const comments: Array<{ id: string; bookmarkId: string; text: string; timestamp: number }> = [];
   const stmt = db.prepare('SELECT id, bookmark_id, text, timestamp FROM comments WHERE bookmark_id = ? ORDER BY timestamp DESC');
   try {
     stmt.bind([bookmarkId]);
@@ -215,7 +235,7 @@ export async function getComments(bookmarkId: string): Promise<Array<{ id: strin
 export async function getAllComments(): Promise<Array<{ id: string; bookmarkId: string; text: string; timestamp: number }>> {
   if (!db) await initDatabase();
 
-  const comments: Array<any> = [];
+  const comments: Array<{ id: string; bookmarkId: string; text: string; timestamp: number }> = [];
   const stmt = db.prepare('SELECT id, bookmark_id, text, timestamp FROM comments ORDER BY timestamp DESC');
   try {
     while (stmt.step()) {
@@ -236,7 +256,7 @@ export async function getAllComments(): Promise<Array<{ id: string; bookmarkId: 
 export async function addComment(bookmarkId: string, text: string): Promise<string> {
   if (!db) await initDatabase();
 
-  const id = `comment-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  const id = `comment-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
   const stmt = db.prepare('INSERT INTO comments VALUES (?, ?, ?, ?)');
   try {
     stmt.bind([id, bookmarkId, text, Date.now()]);

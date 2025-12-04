@@ -249,7 +249,7 @@ function BookmarkList({ items, onDelete, onCaptureScreenshot, onDeleteScreenshot
                     </button>
                     
                     {showComments === item.id && (
-                      <div className="mt-2 p-2 bg-gray-50 rounded text-xs max-h-40 overflow-y-auto">
+                      <div className="mt-2 p-2 bg-gray-50 rounded text-xs max-h-40 overflow-y-auto" tabIndex={0}>
                         {/* Add comment input */}
                         <div className="flex gap-1 mb-2">
                           <input
