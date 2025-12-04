@@ -148,6 +148,24 @@ h1, h2, h3, h4, h5, h6 {
   animation: slideInRight 0.4s ease-out forwards;
 }
 
+/* Respect reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in-up,
+  .animate-fade-in,
+  .animate-scale-in,
+  .animate-slide-in-right,
+  .animate-pulse,
+  .animate-float {
+    animation: none !important;
+  }
+  
+  .transition-smooth,
+  .hover-lift,
+  * {
+    transition: none !important;
+  }
+}
+
 /* Staggered animations */
 .stagger-1 { animation-delay: 0.1s; }
 .stagger-2 { animation-delay: 0.2s; }
