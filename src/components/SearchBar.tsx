@@ -19,14 +19,6 @@ function SearchBar({ searchTerm, onSearch }: SearchBarProps) {
           fontFamily: 'Crimson Pro, serif',
           fontSize: '1.05rem',
         }}
-        onFocus={(e) => {
-          e.target.style.borderColor = 'var(--color-accent-primary)';
-          e.target.style.boxShadow = 'var(--shadow-glow)';
-        }}
-        onBlur={(e) => {
-          e.target.style.borderColor = 'var(--color-border)';
-          e.target.style.boxShadow = 'none';
-        }}
       />
       <svg
         className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 transition-colors"

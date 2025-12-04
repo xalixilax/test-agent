@@ -169,6 +169,14 @@ h1, h2, h3, h4, h5, h6 {
   box-shadow: var(--shadow-glow);
 }
 
+/* Focus styles for accessibility */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--color-accent-primary);
+  outline-offset: 2px;
+}
+
 /* Glass morphism effect */
 .glass {
   background: rgba(45, 33, 24, 0.7);
@@ -182,4 +190,82 @@ h1, h2, h3, h4, h5, h6 {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+}
+
+/* Selection colors */
+::selection {
+  background: var(--color-accent-primary);
+  color: var(--color-bg-primary);
+}
+
+/* Tooltips */
+[data-tooltip] {
+  position: relative;
+}
+
+[data-tooltip]:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%) translateY(-8px);
+  padding: 6px 12px;
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+  border-radius: 6px;
+  font-size: 0.875rem;
+  white-space: nowrap;
+  opacity: 0;
+  animation: fadeIn 0.2s ease-out 0.3s forwards;
+  pointer-events: none;
+  z-index: 100;
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--color-border);
+}
+
+/* Skeleton loading */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-secondary) 0%,
+    var(--color-bg-tertiary) 50%,
+    var(--color-bg-secondary) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* Smooth scrolling */
+@media (prefers-reduced-motion: no-preference) {
+  * {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Input focus states */
+input[type="text"]:focus,
+input[type="url"]:focus,
+input[type="search"]:focus {
+  border-color: var(--color-accent-primary) !important;
+  box-shadow: var(--shadow-glow);
+}
+
+/* Card hover states */
+.card-hover {
+  border-color: var(--color-border);
+  transition: border-color 0.3s ease;
+}
+
+.card-hover:hover {
+  border-color: var(--color-accent-primary);
+}
+
+/* Text hover effect */
+.text-hover-accent {
+  color: var(--color-text-primary);
+  transition: color 0.3s ease;
+}
+
+.text-hover-accent:hover {
+  color: var(--color-accent-primary);
 }

@@ -67,8 +67,6 @@ function AddBookmark({ onAdd }: AddBookmarkProps) {
             color: 'var(--color-text-primary)',
             fontFamily: 'Crimson Pro, serif',
           }}
-          onFocus={(e) => e.target.style.borderColor = 'var(--color-accent-primary)'}
-          onBlur={(e) => e.target.style.borderColor = 'var(--color-border)'}
           required
         />
       </div>
@@ -85,8 +83,6 @@ function AddBookmark({ onAdd }: AddBookmarkProps) {
             color: 'var(--color-text-primary)',
             fontFamily: 'Crimson Pro, serif',
           }}
-          onFocus={(e) => e.target.style.borderColor = 'var(--color-accent-primary)'}
-          onBlur={(e) => e.target.style.borderColor = 'var(--color-border)'}
           required
         />
       </div>

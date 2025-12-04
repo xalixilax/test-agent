@@ -90,16 +90,13 @@ function BookmarkList({ items, onDelete, onCaptureScreenshot, onDeleteScreenshot
               onDragStart={(e) => handleDragStart(e, item.id)}
               onDragOver={folder ? handleDragOver : undefined}
               onDrop={folder ? (e) => handleDrop(e, item.id) : undefined}
-              className={`group p-4 rounded-xl transition-smooth hover-lift border-2 cursor-pointer animate-scale-in ${
+              className={`group p-4 rounded-xl transition-smooth hover-lift border-2 cursor-pointer animate-scale-in card-hover ${
                 draggedItem === item.id ? 'opacity-50' : ''
               }`}
               style={{
                 background: 'var(--color-bg-secondary)',
-                borderColor: 'var(--color-border)',
                 animationDelay: `${index * 0.05}s`,
               }}
-              onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--color-accent-primary)'}
-              onMouseLeave={(e) => e.currentTarget.style.borderColor = 'var(--color-border)'}
             >
               {folder ? (
                 /* Folder Card */
@@ -163,15 +160,12 @@ function BookmarkList({ items, onDelete, onCaptureScreenshot, onDeleteScreenshot
                   )}
                   
                   <h3
-                    className="font-bold truncate cursor-pointer transition-colors mb-1"
+                    className="font-bold truncate cursor-pointer text-hover-accent mb-1"
                     onClick={() => item.url && handleOpenBookmark(item.url)}
                     title={item.title}
                     style={{
                       fontFamily: 'Syne, sans-serif',
-                      color: 'var(--color-text-primary)',
                     }}
-                    onMouseEnter={(e) => e.currentTarget.style.color = 'var(--color-accent-primary)'}
-                    onMouseLeave={(e) => e.currentTarget.style.color = 'var(--color-text-primary)'}
                   >
                     {item.title}
                   </h3>
