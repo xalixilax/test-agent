@@ -2,21 +2,16 @@ import { useState, useEffect } from 'react';
 import BookmarkList from './components/BookmarkList';
 import SearchBar from './components/SearchBar';
 import AddBookmark from './components/AddBookmark';
-
-interface Bookmark {
-  id: string;
-  title: string;
-  url?: string;
-  dateAdded?: number;
-  children?: Bookmark[];
-  screenshot?: string; // Screenshot data URL
-}
+import Breadcrumb from './components/Breadcrumb';
+import type { Bookmark, BreadcrumbItem } from './types';
 
 function App() {
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [screenshots, setScreenshots] = useState<Record<string, any>>({});
+  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
+  const [breadcrumbPath, setBreadcrumbPath] = useState<BreadcrumbItem[]>([]);
 
   useEffect(() => {
     loadBookmarks();
@@ -42,18 +37,53 @@ function App() {
     if (typeof chrome !== 'undefined' && chrome.bookmarks) {
       chrome.bookmarks.getTree((bookmarkTree) => {
         setBookmarks(bookmarkTree);
+        // Initialize to the root bookmark bar or first available folder
+        if (bookmarkTree.length > 0 && bookmarkTree[0].children) {
+          const bookmarkBar = bookmarkTree[0].children.find(node => node.id === '1') || bookmarkTree[0].children[0];
+          if (bookmarkBar) {
+            setCurrentFolderId(bookmarkBar.id);
+            setBreadcrumbPath([{ id: bookmarkBar.id, title: bookmarkBar.title || 'Bookmarks' }]);
+          }
+        }
         setLoading(false);
       });
     } else {
       // Mock data for development
-      setBookmarks([
+      const mockData = [
         {
-          id: '1',
-          title: 'Sample Bookmark',
-          url: 'https://example.com',
-          dateAdded: Date.now(),
+          id: 'root',
+          title: 'Bookmarks',
+          children: [
+            {
+              id: '1',
+              title: 'Bookmark Bar',
+              children: [
+                {
+                  id: 'folder1',
+                  title: 'Work',
+                  children: [
+                    {
+                      id: 'b1',
+                      title: 'Sample Bookmark',
+                      url: 'https://example.com',
+                      dateAdded: Date.now(),
+                    },
+                  ],
+                },
+                {
+                  id: 'b2',
+                  title: 'Google',
+                  url: 'https://google.com',
+                  dateAdded: Date.now(),
+                },
+              ],
+            },
+          ],
         },
-      ]);
+      ];
+      setBookmarks(mockData);
+      setCurrentFolderId('1');
+      setBreadcrumbPath([{ id: '1', title: 'Bookmark Bar' }]);
       setLoading(false);
     }
   };
@@ -62,6 +92,7 @@ function App() {
     if (typeof chrome !== 'undefined' && chrome.bookmarks) {
       chrome.bookmarks.create(
         {
+          parentId: currentFolderId || undefined,
           title,
           url,
         },
@@ -74,7 +105,27 @@ function App() {
 
   const deleteBookmark = (id: string) => {
     if (typeof chrome !== 'undefined' && chrome.bookmarks) {
-      chrome.bookmarks.remove(id, () => {
+      // Find the item in the current folder to check if it's a folder or bookmark
+      const currentItems = getCurrentFolderItems();
+      const item = currentItems.find(i => i.id === id);
+      
+      if (item && !item.url && Array.isArray(item.children)) {
+        // It's a folder, remove it recursively
+        chrome.bookmarks.removeTree(id, () => {
+          loadBookmarks();
+        });
+      } else {
+        // It's a bookmark, just remove it
+        chrome.bookmarks.remove(id, () => {
+          loadBookmarks();
+        });
+      }
+    }
+  };
+
+  const moveBookmark = (itemId: string, targetFolderId: string) => {
+    if (typeof chrome !== 'undefined' && chrome.bookmarks) {
+      chrome.bookmarks.move(itemId, { parentId: targetFolderId }, () => {
         loadBookmarks();
       });
     }
@@ -134,11 +185,69 @@ function App() {
     return result;
   };
 
-  const filteredBookmarks = flattenBookmarks(bookmarks).filter(
-    (bookmark) =>
-      bookmark.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      bookmark.url?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const findFolderById = (nodes: Bookmark[], id: string): Bookmark | null => {
+    for (const node of nodes) {
+      if (node.id === id) {
+        return node;
+      }
+      if (node.children) {
+        const found = findFolderById(node.children, id);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+
+  const buildPathToFolder = (nodes: Bookmark[], targetId: string, path: BreadcrumbItem[] = []): BreadcrumbItem[] | null => {
+    for (const node of nodes) {
+      const newPath = [...path, { id: node.id, title: node.title || 'Untitled' }];
+      
+      if (node.id === targetId) {
+        return newPath;
+      }
+      
+      if (node.children) {
+        const found = buildPathToFolder(node.children, targetId, newPath);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+
+  const navigateToFolder = (folderId: string) => {
+    setCurrentFolderId(folderId);
+    const path = buildPathToFolder(bookmarks, folderId);
+    if (path) {
+      setBreadcrumbPath(path);
+    }
+    setSearchTerm(''); // Clear search when navigating
+  };
+
+  const getCurrentFolderItems = (): Bookmark[] => {
+    if (!currentFolderId) return [];
+    
+    const folder = findFolderById(bookmarks, currentFolderId);
+    if (!folder || !folder.children) return [];
+    
+    // Add screenshot data to bookmarks
+    return folder.children.map(item => {
+      if (item.url) {
+        return {
+          ...item,
+          screenshot: screenshots[item.id]?.dataUrl
+        };
+      }
+      return item;
+    });
+  };
+
+  const filteredBookmarks = searchTerm
+    ? flattenBookmarks(bookmarks).filter(
+        (bookmark) =>
+          bookmark.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          bookmark.url?.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    : getCurrentFolderItems();
 
   if (loading) {
     return (
@@ -164,11 +273,14 @@ function App() {
           <div className="p-6 space-y-6">
             <AddBookmark onAdd={addBookmark} />
             <SearchBar searchTerm={searchTerm} onSearch={setSearchTerm} />
+            {!searchTerm && <Breadcrumb path={breadcrumbPath} onNavigate={navigateToFolder} />}
             <BookmarkList
-              bookmarks={filteredBookmarks}
+              items={filteredBookmarks}
               onDelete={deleteBookmark}
               onCaptureScreenshot={captureScreenshot}
               onDeleteScreenshot={deleteScreenshot}
+              onFolderClick={navigateToFolder}
+              onMove={moveBookmark}
             />
           </div>
         </div>
