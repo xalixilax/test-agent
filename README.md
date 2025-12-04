@@ -10,6 +10,9 @@ A modern Chrome extension for managing bookmarks, built with React, Tailwind CSS
 - 🔍 **Search** - Quickly find bookmarks by title or URL
 - ➕ **Add Bookmarks** - Create new bookmarks directly from the extension
 - 🗑️ **Delete Bookmarks** - Remove unwanted bookmarks with a single click
+- 📷 **Screenshot Capture** - Automatically capture screenshots when visiting bookmarks for the first time
+- 🖼️ **Screenshot Preview** - View thumbnail previews of bookmarked pages and click to see full-size screenshots
+- ♻️ **Screenshot Management** - Manually capture, retake, or delete screenshots for any bookmark
 - 🎨 **Modern UI** - Beautiful interface built with React and Tailwind CSS
 
 ## Tech Stack
@@ -71,11 +74,16 @@ This will start Vite's dev server at `http://localhost:5173` (or another port if
 ## Usage
 
 1. Click the Bookmark Manager icon in your Chrome toolbar
-2. The popup will display all your bookmarks
+2. The popup will display all your bookmarks with screenshot previews (if available)
 3. Use the search bar to filter bookmarks
 4. Click "Add New Bookmark" to create a new bookmark
-5. Hover over a bookmark and click the delete icon to remove it
-6. Click on any bookmark to open it in a new tab
+5. **Screenshots are automatically captured** when you visit a bookmarked page for the first time
+6. Click the **"📷 Capture"** button on any bookmark to manually take a screenshot of the current tab
+7. Click on a screenshot thumbnail to view it in full size
+8. Click **"🗑️ Delete Screenshot"** to remove a screenshot while keeping the bookmark
+9. Click the **"📷 Retake"** button to replace an existing screenshot with a new one
+10. Hover over a bookmark and click the delete icon to remove it
+11. Click on any bookmark title or URL to open it in a new tab
 
 ## Project Structure
 
@@ -89,6 +97,7 @@ This will start Vite's dev server at `http://localhost:5173` (or another port if
 │   │   ├── AddBookmark.tsx
 │   │   ├── BookmarkList.tsx
 │   │   └── SearchBar.tsx
+│   ├── background.ts      # Service worker for automatic screenshot capture
 │   ├── App.tsx            # Main app component
 │   ├── main.tsx           # Entry point
 │   └── index.css          # Global styles with Tailwind
@@ -108,6 +117,10 @@ This will start Vite's dev server at `http://localhost:5173` (or another port if
 ## Notes
 
 - The extension uses Chrome's Bookmarks API, so it requires the `bookmarks` permission
+- Screenshots are stored using Chrome's Storage API with the `storage` permission
+- The extension requires `tabs` and `activeTab` permissions to capture screenshots
+- Screenshots are automatically captured when you visit a bookmarked page for the first time
+- You can manually capture screenshots at any time using the "Capture" button
 - In development mode, mock data is displayed if the Chrome API is not available
 - The extension popup is optimized for a 400x500px window
 
