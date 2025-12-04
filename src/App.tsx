@@ -4,7 +4,7 @@ import SearchBar from "./components/SearchBar";
 import AddBookmark from "./components/AddBookmark";
 import Breadcrumb from "./components/Breadcrumb";
 import type { Bookmark, BreadcrumbItem, Comment } from "./types";
-import { initDatabase, getAllScreenshots, getAllComments, getAllRatings, addComment, deleteComment, setRating } from "./db";
+import { getAllScreenshots, getAllComments, getAllRatings, addComment, deleteComment, setRating } from "./db";
 
 function App() {
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
@@ -23,7 +23,6 @@ function App() {
 
   const loadData = async () => {
     try {
-      await initDatabase();
       const screenshotsData = await getAllScreenshots();
       const commentsData = await getAllComments();
       const ratingsData = await getAllRatings();
@@ -32,9 +31,7 @@ function App() {
       setComments(commentsData);
       setRatings(ratingsData);
     } catch (error) {
-      console.error('Failed to load data from database:', error);
-      // Fallback to chrome.storage.local
-      loadScreenshots();
+      console.error('Failed to load data from storage:', error);
     }
 
     // Listen for storage changes
