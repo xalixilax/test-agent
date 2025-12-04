@@ -3,20 +3,62 @@ import BookmarkList from "./components/BookmarkList";
 import SearchBar from "./components/SearchBar";
 import AddBookmark from "./components/AddBookmark";
 import Breadcrumb from "./components/Breadcrumb";
-import type { Bookmark, BreadcrumbItem } from "./types";
+import type { Bookmark, BreadcrumbItem, Comment } from "./types";
+import { initDatabase, getAllScreenshots, getAllComments, getAllRatings, addComment, deleteComment, setRating } from "./db";
 
 function App() {
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
   const [screenshots, setScreenshots] = useState<Record<string, any>>({});
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [ratings, setRatings] = useState<Record<string, number>>({});
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [breadcrumbPath, setBreadcrumbPath] = useState<BreadcrumbItem[]>([]);
 
   useEffect(() => {
     loadBookmarks();
-    loadScreenshots();
+    loadData();
   }, []);
+
+  const loadData = async () => {
+    try {
+      await initDatabase();
+      const screenshotsData = await getAllScreenshots();
+      const commentsData = await getAllComments();
+      const ratingsData = await getAllRatings();
+      
+      setScreenshots(screenshotsData);
+      setComments(commentsData);
+      setRatings(ratingsData);
+    } catch (error) {
+      console.error('Failed to load data from database:', error);
+      // Fallback to chrome.storage.local
+      loadScreenshots();
+    }
+
+    // Listen for storage changes
+    if (typeof chrome !== "undefined" && chrome.storage) {
+      chrome.storage.onChanged.addListener(async (changes, namespace) => {
+        if (namespace === "local") {
+          if (changes.screenshots) {
+            setScreenshots(changes.screenshots.newValue || {});
+          }
+          if (changes.comments) {
+            setComments(changes.comments.newValue || []);
+          }
+          if (changes.ratings) {
+            const ratingsData = changes.ratings.newValue || {};
+            const ratingsMap: Record<string, number> = {};
+            for (const [bookmarkId, data] of Object.entries(ratingsData)) {
+              ratingsMap[bookmarkId] = (data as any).rating;
+            }
+            setRatings(ratingsMap);
+          }
+        }
+      });
+    }
+  };
 
   const loadScreenshots = () => {
     if (typeof chrome !== "undefined" && chrome.storage) {
@@ -177,16 +219,48 @@ function App() {
     }
   };
 
+  const handleAddComment = async (bookmarkId: string, text: string) => {
+    try {
+      await addComment(bookmarkId, text);
+      const commentsData = await getAllComments();
+      setComments(commentsData);
+    } catch (error) {
+      console.error('Failed to add comment:', error);
+    }
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    try {
+      await deleteComment(commentId);
+      const commentsData = await getAllComments();
+      setComments(commentsData);
+    } catch (error) {
+      console.error('Failed to delete comment:', error);
+    }
+  };
+
+  const handleSetRating = async (bookmarkId: string, rating: number) => {
+    try {
+      await setRating(bookmarkId, rating);
+      const ratingsData = await getAllRatings();
+      setRatings(ratingsData);
+    } catch (error) {
+      console.error('Failed to set rating:', error);
+    }
+  };
+
   const flattenBookmarks = (nodes: Bookmark[]): Bookmark[] => {
     let result: Bookmark[] = [];
     nodes.forEach((node) => {
       if (node.url) {
-        // Add screenshot data if available
-        const bookmarkWithScreenshot = {
+        // Add screenshot data, comments, and rating if available
+        const bookmarkWithData = {
           ...node,
           screenshot: screenshots[node.id]?.dataUrl,
+          comments: comments.filter(c => c.bookmarkId === node.id),
+          rating: ratings[node.id]
         };
-        result.push(bookmarkWithScreenshot);
+        result.push(bookmarkWithData);
       }
       if (node.children) {
         result = result.concat(flattenBookmarks(node.children));
@@ -246,12 +320,14 @@ function App() {
     const folder = findFolderById(bookmarks, currentFolderId);
     if (!folder || !folder.children) return [];
 
-    // Add screenshot data to bookmarks
+    // Add screenshot data, comments, and rating to bookmarks
     return folder.children.map((item) => {
       if (item.url) {
         return {
           ...item,
           screenshot: screenshots[item.id]?.dataUrl,
+          comments: comments.filter(c => c.bookmarkId === item.id),
+          rating: ratings[item.id]
         };
       }
       return item;
@@ -329,6 +405,9 @@ function App() {
               onDeleteScreenshot={deleteScreenshot}
               onFolderClick={navigateToFolder}
               onMove={moveBookmark}
+              onAddComment={handleAddComment}
+              onDeleteComment={handleDeleteComment}
+              onSetRating={handleSetRating}
             />
           </div>
         </div>

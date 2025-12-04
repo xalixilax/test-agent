@@ -8,11 +8,16 @@ interface BookmarkListProps {
   onDeleteScreenshot: (id: string) => void;
   onFolderClick: (id: string) => void;
   onMove?: (itemId: string, targetFolderId: string) => void;
+  onAddComment: (bookmarkId: string, text: string) => void;
+  onDeleteComment: (commentId: string) => void;
+  onSetRating: (bookmarkId: string, rating: number) => void;
 }
 
-function BookmarkList({ items, onDelete, onCaptureScreenshot, onDeleteScreenshot, onFolderClick, onMove }: BookmarkListProps) {
+function BookmarkList({ items, onDelete, onCaptureScreenshot, onDeleteScreenshot, onFolderClick, onMove, onAddComment, onDeleteComment, onSetRating }: BookmarkListProps) {
   const [selectedScreenshot, setSelectedScreenshot] = useState<string | null>(null);
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
+  const [showComments, setShowComments] = useState<string | null>(null);
+  const [newComment, setNewComment] = useState<string>('');
 
   const handleOpenBookmark = (url: string) => {
     if (typeof chrome !== 'undefined' && chrome.tabs) {
@@ -47,6 +52,52 @@ function BookmarkList({ items, onDelete, onCaptureScreenshot, onDeleteScreenshot
 
   const isFolder = (item: Bookmark) => {
     return !item.url && Array.isArray(item.children);
+  };
+
+  const handleAddComment = (bookmarkId: string) => {
+    if (newComment.trim()) {
+      onAddComment(bookmarkId, newComment.trim());
+      setNewComment('');
+    }
+  };
+
+  const renderStars = (bookmarkId: string, currentRating?: number) => {
+    const stars = [];
+    for (let i = 1; i <= 5; i++) {
+      stars.push(
+        <button
+          key={i}
+          onClick={() => onSetRating(bookmarkId, i)}
+          className={`text-lg ${i <= (currentRating || 0) ? 'text-yellow-500' : 'text-gray-300'} hover:text-yellow-400 transition-colors`}
+          title={`Rate ${i} star${i > 1 ? 's' : ''}`}
+        >
+          ★
+        </button>
+      );
+    }
+    return stars;
+  };
+
+  const formatCommentDate = (timestamp: number) => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    
+    if (days === 0) {
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      if (hours === 0) {
+        const minutes = Math.floor(diff / (1000 * 60));
+        return minutes === 0 ? 'Just now' : `${minutes}m ago`;
+      }
+      return `${hours}h ago`;
+    } else if (days === 1) {
+      return 'Yesterday';
+    } else if (days < 7) {
+      return `${days}d ago`;
+    } else {
+      return date.toLocaleDateString();
+    }
   };
 
   if (items.length === 0) {
@@ -159,6 +210,14 @@ function BookmarkList({ items, onDelete, onCaptureScreenshot, onDeleteScreenshot
                   <p className="text-xs text-gray-500 mt-1">
                     {formatDate(item.dateAdded)}
                   </p>
+
+                  {/* Rating stars */}
+                  <div className="flex gap-1 mt-2 items-center">
+                    {renderStars(item.id, item.rating)}
+                    {item.rating && (
+                      <span className="text-xs text-gray-500 ml-1">({item.rating}/5)</span>
+                    )}
+                  </div>
                   
                   {/* Screenshot controls */}
                   <div className="flex gap-1 mt-2">
@@ -177,6 +236,65 @@ function BookmarkList({ items, onDelete, onCaptureScreenshot, onDeleteScreenshot
                       >
                         🗑️
                       </button>
+                    )}
+                  </div>
+
+                  {/* Comments section */}
+                  <div className="mt-2">
+                    <button
+                      onClick={() => setShowComments(showComments === item.id ? null : item.id)}
+                      className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded hover:bg-purple-200 transition-colors"
+                    >
+                      💬 Comments {item.comments && item.comments.length > 0 ? `(${item.comments.length})` : ''}
+                    </button>
+                    
+                    {showComments === item.id && (
+                      <div className="mt-2 p-2 bg-gray-50 rounded text-xs max-h-40 overflow-y-auto">
+                        {/* Add comment input */}
+                        <div className="flex gap-1 mb-2">
+                          <input
+                            type="text"
+                            value={newComment}
+                            onChange={(e) => setNewComment(e.target.value)}
+                            onKeyPress={(e) => {
+                              if (e.key === 'Enter') {
+                                handleAddComment(item.id);
+                              }
+                            }}
+                            placeholder="Add a comment..."
+                            className="flex-1 px-2 py-1 border border-gray-300 rounded text-xs"
+                          />
+                          <button
+                            onClick={() => handleAddComment(item.id)}
+                            className="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+                          >
+                            Add
+                          </button>
+                        </div>
+                        
+                        {/* Display comments */}
+                        {item.comments && item.comments.length > 0 ? (
+                          <div className="space-y-2">
+                            {item.comments.map((comment) => (
+                              <div key={comment.id} className="flex justify-between items-start bg-white p-2 rounded">
+                                <div className="flex-1">
+                                  <p className="text-gray-800">{comment.text}</p>
+                                  <p className="text-gray-400 text-xs mt-1">{formatCommentDate(comment.timestamp)}</p>
+                                </div>
+                                <button
+                                  onClick={() => onDeleteComment(comment.id)}
+                                  className="text-red-500 hover:text-red-700 ml-2"
+                                  title="Delete comment"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-gray-400 text-center py-2">No comments yet</p>
+                        )}
+                      </div>
                     )}
                   </div>
                   

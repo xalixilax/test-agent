@@ -1,4 +1,6 @@
 // Background service worker for automatic screenshot capture
+import { initDatabase, saveScreenshot, deleteScreenshot, getScreenshot } from './db';
+
 interface ScreenshotData {
   [bookmarkId: string]: {
     dataUrl: string;
@@ -10,6 +12,11 @@ interface ScreenshotData {
 interface VisitedUrlsData {
   urls: string[];
 }
+
+// Initialize database when service worker starts
+initDatabase().catch(err => {
+  console.error('Failed to initialize database in background:', err);
+});
 
 // Helper function to get visited URLs from storage
 async function getVisitedUrls(): Promise<Set<string>> {
@@ -46,14 +53,13 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
         const bookmark = bookmarks[0];
         
         // Check if we already have a screenshot for this bookmark
-        const result = await chrome.storage.local.get('screenshots');
-        const screenshots: ScreenshotData = result.screenshots || {};
+        const screenshot = await getScreenshot(bookmark.id);
         
         // Get visited URLs from storage
         const visitedUrls = await getVisitedUrls();
         
         // If no screenshot exists and URL hasn't been visited
-        if (!screenshots[bookmark.id] && !visitedUrls.has(url)) {
+        if (!screenshot && !visitedUrls.has(url)) {
           await addVisitedUrl(url);
           
           // Capture screenshot using chrome.webNavigation or after DOM is ready
@@ -63,13 +69,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
               quality: 80
             });
             
-            screenshots[bookmark.id] = {
-              dataUrl,
-              timestamp: Date.now(),
-              url
-            };
-            
-            await chrome.storage.local.set({ screenshots });
+            await saveScreenshot(bookmark.id, dataUrl, url);
             console.log(`Screenshot captured for bookmark: ${bookmark.title}`);
           } catch (error) {
             console.error('Failed to capture screenshot:', error);
@@ -100,16 +100,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             quality: 80
           });
           
-          const result = await chrome.storage.local.get('screenshots');
-          const screenshots: ScreenshotData = result.screenshots || {};
-          
-          screenshots[bookmarkId] = {
-            dataUrl,
-            timestamp: Date.now(),
-            url
-          };
-          
-          await chrome.storage.local.set({ screenshots });
+          await saveScreenshot(bookmarkId, dataUrl, url);
           sendResponse({ success: true, dataUrl });
         } else {
           // No tab found with this URL, create one and capture it
@@ -147,16 +138,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             quality: 80
           });
           
-          const result = await chrome.storage.local.get('screenshots');
-          const screenshots: ScreenshotData = result.screenshots || {};
-          
-          screenshots[bookmarkId] = {
-            dataUrl,
-            timestamp: Date.now(),
-            url
-          };
-          
-          await chrome.storage.local.set({ screenshots });
+          await saveScreenshot(bookmarkId, dataUrl, url);
           
           // Close the tab we created
           if (tab.id) {
@@ -180,11 +162,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     
     (async () => {
       try {
-        const result = await chrome.storage.local.get('screenshots');
-        const screenshots: ScreenshotData = result.screenshots || {};
-        delete screenshots[bookmarkId];
-        
-        await chrome.storage.local.set({ screenshots });
+        await deleteScreenshot(bookmarkId);
         sendResponse({ success: true });
       } catch (error) {
         console.error('Failed to delete screenshot:', error);
