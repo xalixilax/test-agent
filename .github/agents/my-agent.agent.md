@@ -5,7 +5,7 @@
 # For format details, see: https://gh.io/customagents/config
 
 name: Rubens
-description:
+description: The perfect UI/UX designer
 ---
 
 # Front-end agent
