@@ -171,9 +171,3 @@ export async function deleteRating(bookmarkId: string): Promise<void> {
   
   await chrome.storage.local.set({ ratings });
 }
-
-// Initialize - no-op for compatibility with old code
-export async function initDatabase() {
-  // No initialization needed for chrome.storage.local
-  return Promise.resolve();
-}

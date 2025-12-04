@@ -57,21 +57,6 @@ function App() {
     }
   };
 
-  const loadScreenshots = () => {
-    if (typeof chrome !== "undefined" && chrome.storage) {
-      chrome.storage.local.get("screenshots", (result) => {
-        setScreenshots(result.screenshots || {});
-      });
-
-      // Listen for screenshot updates
-      chrome.storage.onChanged.addListener((changes, namespace) => {
-        if (namespace === "local" && changes.screenshots) {
-          setScreenshots(changes.screenshots.newValue || {});
-        }
-      });
-    }
-  };
-
   const loadBookmarks = () => {
     if (typeof chrome !== "undefined" && chrome.bookmarks) {
       chrome.bookmarks.getTree((bookmarkTree) => {
