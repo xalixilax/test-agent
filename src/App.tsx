@@ -9,16 +9,34 @@ interface Bookmark {
   url?: string;
   dateAdded?: number;
   children?: Bookmark[];
+  screenshot?: string; // Screenshot data URL
 }
 
 function App() {
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
+  const [screenshots, setScreenshots] = useState<Record<string, any>>({});
 
   useEffect(() => {
     loadBookmarks();
+    loadScreenshots();
   }, []);
+
+  const loadScreenshots = () => {
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      chrome.storage.local.get('screenshots', (result) => {
+        setScreenshots(result.screenshots || {});
+      });
+      
+      // Listen for screenshot updates
+      chrome.storage.onChanged.addListener((changes, namespace) => {
+        if (namespace === 'local' && changes.screenshots) {
+          setScreenshots(changes.screenshots.newValue || {});
+        }
+      });
+    }
+  };
 
   const loadBookmarks = () => {
     if (typeof chrome !== 'undefined' && chrome.bookmarks) {
@@ -62,11 +80,52 @@ function App() {
     }
   };
 
+  const captureScreenshot = (bookmarkId: string, url: string) => {
+    if (typeof chrome !== 'undefined' && chrome.runtime) {
+      chrome.runtime.sendMessage(
+        { action: 'captureScreenshot', bookmarkId, url },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            console.error('Error sending message:', chrome.runtime.lastError.message);
+            return;
+          }
+          if (response?.success) {
+            console.log('Screenshot captured successfully');
+          } else {
+            console.error('Failed to capture screenshot:', response?.error);
+          }
+        }
+      );
+    }
+  };
+
+  const deleteScreenshot = (bookmarkId: string) => {
+    if (typeof chrome !== 'undefined' && chrome.runtime) {
+      chrome.runtime.sendMessage(
+        { action: 'deleteScreenshot', bookmarkId },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            console.error('Error sending message:', chrome.runtime.lastError.message);
+            return;
+          }
+          if (response?.success) {
+            console.log('Screenshot deleted successfully');
+          }
+        }
+      );
+    }
+  };
+
   const flattenBookmarks = (nodes: Bookmark[]): Bookmark[] => {
     let result: Bookmark[] = [];
     nodes.forEach((node) => {
       if (node.url) {
-        result.push(node);
+        // Add screenshot data if available
+        const bookmarkWithScreenshot = {
+          ...node,
+          screenshot: screenshots[node.id]?.dataUrl
+        };
+        result.push(bookmarkWithScreenshot);
       }
       if (node.children) {
         result = result.concat(flattenBookmarks(node.children));
@@ -108,6 +167,8 @@ function App() {
             <BookmarkList
               bookmarks={filteredBookmarks}
               onDelete={deleteBookmark}
+              onCaptureScreenshot={captureScreenshot}
+              onDeleteScreenshot={deleteScreenshot}
             />
           </div>
         </div>

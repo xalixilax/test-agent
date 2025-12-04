@@ -5,8 +5,17 @@
   "description": "A powerful bookmark management extension built with React and Tailwind CSS",
   "permissions": [
     "bookmarks",
-    "storage"
+    "storage",
+    "tabs",
+    "activeTab",
+    "alarms"
   ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
   "action": {
     "default_popup": "index.html",
     "default_icon": {
