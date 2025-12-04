@@ -89,6 +89,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     
     // First, try to find a tab with this URL
     chrome.tabs.query({ url }, async (tabs) => {
+      if (chrome.runtime.lastError) {
+        sendResponse({ success: false, error: chrome.runtime.lastError.message });
+        return;
+      }
+      
       if (tabs.length > 0 && tabs[0]?.id) {
         // Found a tab with this URL, capture it
         try {
@@ -115,53 +120,68 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       } else {
         // No tab found with this URL, create one and capture it
         chrome.tabs.create({ url, active: false }, async (tab) => {
+          if (chrome.runtime.lastError) {
+            sendResponse({ success: false, error: chrome.runtime.lastError.message });
+            return;
+          }
+          
           if (!tab.id) {
             sendResponse({ success: false, error: 'Failed to create tab' });
             return;
           }
           
+          let responseHandled = false;
+          let timeoutId: NodeJS.Timeout;
+          
           // Wait for the tab to load
           const loadListener = async (tabId: number, changeInfo: chrome.tabs.TabChangeInfo) => {
-            if (tabId === tab.id && changeInfo.status === 'complete') {
-              chrome.tabs.onUpdated.removeListener(loadListener);
+            if (responseHandled || tabId !== tab.id || changeInfo.status !== 'complete') {
+              return;
+            }
+            
+            responseHandled = true;
+            clearTimeout(timeoutId);
+            chrome.tabs.onUpdated.removeListener(loadListener);
+            
+            try {
+              const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, {
+                format: 'png',
+                quality: 80
+              });
               
-              try {
-                const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, {
-                  format: 'png',
-                  quality: 80
-                });
-                
-                const result = await chrome.storage.local.get('screenshots');
-                const screenshots: ScreenshotData = result.screenshots || {};
-                
-                screenshots[bookmarkId] = {
-                  dataUrl,
-                  timestamp: Date.now(),
-                  url
-                };
-                
-                await chrome.storage.local.set({ screenshots });
-                
-                // Close the tab we created
-                if (tab.id) {
-                  chrome.tabs.remove(tab.id);
-                }
-                
-                sendResponse({ success: true, dataUrl });
-              } catch (error) {
-                console.error('Failed to capture screenshot:', error);
-                if (tab.id) {
-                  chrome.tabs.remove(tab.id);
-                }
-                sendResponse({ success: false, error: String(error) });
+              const result = await chrome.storage.local.get('screenshots');
+              const screenshots: ScreenshotData = result.screenshots || {};
+              
+              screenshots[bookmarkId] = {
+                dataUrl,
+                timestamp: Date.now(),
+                url
+              };
+              
+              await chrome.storage.local.set({ screenshots });
+              
+              // Close the tab we created
+              if (tab.id) {
+                chrome.tabs.remove(tab.id);
               }
+              
+              sendResponse({ success: true, dataUrl });
+            } catch (error) {
+              console.error('Failed to capture screenshot:', error);
+              if (tab.id) {
+                chrome.tabs.remove(tab.id);
+              }
+              sendResponse({ success: false, error: String(error) });
             }
           };
           
           chrome.tabs.onUpdated.addListener(loadListener);
           
           // Set a timeout to prevent hanging
-          setTimeout(() => {
+          timeoutId = setTimeout(() => {
+            if (responseHandled) return;
+            
+            responseHandled = true;
             chrome.tabs.onUpdated.removeListener(loadListener);
             if (tab.id) {
               chrome.tabs.remove(tab.id);
