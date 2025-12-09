@@ -1,4 +1,4 @@
-import { users } from "./db/schema";
+import { bookmarks } from "./db/schema";
 import { createWorkerHandler, type WorkerRequest } from "./lib/worker/router";
 import { createAppRouter } from "./routers/appRouters";
 import { error, log } from "./lib/worker/utils";
@@ -17,22 +17,8 @@ const requestQueue: WorkerRequest[] = [];
 		const router = createAppRouter({ db, log, error });
 		handleRequest = createWorkerHandler(router);
 
-		// await db.execute(`
-		// 	drop table if exists users;
-		// `);
-
-		const allUsers = await db.select().from(users);
-		log(`Found ${allUsers.length} users`);
-
-		if (allUsers.length === 0) {
-			log("Inserting default user...");
-			await db.insert(users).values({
-				name: "John Doe",
-				email: "john@example.com",
-				age: 30,
-			});
-			log("Default user inserted");
-		}
+		const allBookmarks = await db.select().from(bookmarks);
+		log(`Found ${allBookmarks.length} bookmarks`);
 
 		isDbReady = true;
 		log("Database ready");

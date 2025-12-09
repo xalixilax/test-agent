@@ -1,1 +1,1 @@
-{}
+[{"version":"0000_amusing_joseph","sql":"CREATE TABLE \"bookmarks\" (\n\t\"id\" text PRIMARY KEY NOT NULL,\n\t\"url\" text NOT NULL,\n\t\"title\" text NOT NULL,\n\t\"rating\" integer,\n\t\"note\" text,\n\t\"tags\" text\n);"}]

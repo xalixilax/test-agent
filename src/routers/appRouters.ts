@@ -1,29 +1,33 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { type User, users } from "../db/schema";
+import { type Bookmark, bookmarks } from "../db/schema";
 import { createRouter, mutation, query } from "../lib/worker/router";
 
 // Input schemas
-const addUserSchema = z.object({
-	name: z.string().min(1, "Name is required"),
-	email: z
-		.string()
-		.min(1, "Email is required")
-		.email("Please enter a valid email address"),
-	age: z.number().int().positive("Age must be a positive number"),
-	city: z.string().optional(),
+const addBookmarkSchema = z.object({
+	id: z.string().min(1, "ID is required"),
+	url: z.string().min(1, "URL is required").url("Please enter a valid URL"),
+	title: z.string().min(1, "Title is required"),
+	rating: z.number().int().min(1).max(5).optional(),
+	note: z.string().optional(),
+	tags: z.string().optional(),
 });
 
-const updateUserSchema = z.object({
-	id: z.number().int().positive(),
-	name: z.string().min(1).optional(),
-	email: z.string().email("Please enter a valid email address").optional(),
-	age: z.number().int().positive().optional(),
-	city: z.string().optional(),
+const updateBookmarkSchema = z.object({
+	id: z.string().min(1, "ID is required"),
+	url: z.string().url("Please enter a valid URL").optional(),
+	title: z.string().min(1).optional(),
+	rating: z.number().int().min(1).max(5).optional(),
+	note: z.string().optional(),
+	tags: z.string().optional(),
 });
 
-const deleteUserSchema = z.object({
-	id: z.number().int().positive(),
+const deleteBookmarkSchema = z.object({
+	id: z.string().min(1, "ID is required"),
+});
+
+const getBookmarkSchema = z.object({
+	id: z.string().min(1, "ID is required"),
 });
 
 export const createAppRouter = (context: {
@@ -32,50 +36,62 @@ export const createAppRouter = (context: {
 	error: (...args: string[]) => void;
 }) => {
 	return createRouter({
-		getUsers: query({
-			handler: async (): Promise<User[]> => {
-				return await context.db.select().from(users).orderBy(users.id);
+		getBookmarks: query({
+			handler: async (): Promise<Bookmark[]> => {
+				return await context.db.select().from(bookmarks);
 			},
 		}),
 
-		addUser: mutation({
-			input: addUserSchema,
-			handler: async (input): Promise<User> => {
-				const [newUser] = await context.db
-					.insert(users)
+		getBookmark: query({
+			input: getBookmarkSchema,
+			handler: async (input): Promise<Bookmark | null> => {
+				const [bookmark] = await context.db
+					.select()
+					.from(bookmarks)
+					.where(eq(bookmarks.id, input.id));
+				return bookmark || null;
+			},
+		}),
+
+		addBookmark: mutation({
+			input: addBookmarkSchema,
+			handler: async (input): Promise<Bookmark> => {
+				const [newBookmark] = await context.db
+					.insert(bookmarks)
 					.values(input)
 					.returning();
-				return newUser;
+				return newBookmark;
 			},
 		}),
 
-		updateUser: mutation({
-			input: updateUserSchema,
-			handler: async (input): Promise<User> => {
+		updateBookmark: mutation({
+			input: updateBookmarkSchema,
+			handler: async (input): Promise<Bookmark> => {
 				const { id, ...updateData } = input;
 
 				if (Object.keys(updateData).length === 0) {
 					throw new Error("No fields to update");
 				}
 
-				const [updatedUser] = await context.db
-					.update(users)
+				const [updatedBookmark] = await context.db
+					.update(bookmarks)
 					.set(updateData)
-					.where(eq(users.id, id))
+					.where(eq(bookmarks.id, id))
 					.returning();
 
-				return updatedUser;
+				return updatedBookmark;
 			},
 		}),
 
-		deleteUser: mutation({
-			input: deleteUserSchema,
-			handler: async (input): Promise<{ id: number }> => {
-				await context.db.delete(users).where(eq(users.id, input.id));
+		deleteBookmark: mutation({
+			input: deleteBookmarkSchema,
+			handler: async (input): Promise<{ id: string }> => {
+				await context.db.delete(bookmarks).where(eq(bookmarks.id, input.id));
 				return { id: input.id };
 			},
 		}),
 	});
+};
 };
 
 // Export the router type for the client
