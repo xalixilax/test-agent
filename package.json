@@ -4,10 +4,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node copy-manifest.mjs",
+    "build": "vite build",
     "build:watch": "vite build --watch",
     "preview": "vite preview",
-    "generate-icons": "node generate-icons.mjs"
+    "generate-icons": "node generate-icons.mjs",
+    "db:generate": "drizzle-kit generate",
+    "db:add-migration": "tsx scripts/createStaticMigrationFile.ts"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.17",
@@ -17,6 +19,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
     "autoprefixer": "^10.4.22",
+    "drizzle-kit": "^0.31.8",
     "postcss": "^8.5.6",
     "sharp": "^0.34.5",
     "tailwindcss": "^4.1.17",
@@ -26,7 +29,11 @@
     "typescript": "^5.0.0"
   },
   "dependencies": {
+    "@electric-sql/pglite": "^0.3.14",
+    "dotenv": "^17.2.3",
+    "drizzle-orm": "^0.45.0",
     "react": "^19.2.1",
-    "react-dom": "^19.2.1"
+    "react-dom": "^19.2.1",
+    "zod": "^4.1.13"
   }
 }
