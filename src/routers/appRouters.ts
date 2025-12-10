@@ -92,7 +92,6 @@ export const createAppRouter = (context: {
 		}),
 	});
 };
-};
 
 // Export the router type for the client
 export type AppRouter = ReturnType<typeof createAppRouter>;
