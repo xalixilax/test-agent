@@ -1,64 +1,40 @@
-import { useState, useCallback } from "react";
-import type { Bookmark } from "../types";
+import { useCallback } from "react";
+import { useBookmarksWithTags, useAddBookmark, useUpdateBookmark, useDeleteBookmark } from "../db/useBookmark";
+import type { BookmarkWithTags } from "../types";
 
 export const useBookmarks = () => {
-  const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: bookmarks = [], isLoading: loading, refetch: loadBookmarks } = useBookmarksWithTags();
+  const addBookmarkMutation = useAddBookmark();
+  const updateBookmarkMutation = useUpdateBookmark();
+  const deleteBookmarkMutation = useDeleteBookmark();
 
-  const loadBookmarks = useCallback(() => {
-    if (typeof chrome !== "undefined" && chrome.bookmarks) {
-      chrome.bookmarks.getTree((bookmarkTree) => {
-        setBookmarks(bookmarkTree);
-        setLoading(false);
-      });
-    }
-  }, []);
+  const addBookmark = useCallback((title: string, url: string) => {
+    addBookmarkMutation.mutate({
+      title,
+      url,
+    });
+  }, [addBookmarkMutation]);
 
-  const addBookmark = useCallback((title: string, url: string, parentId: string | null) => {
-    if (typeof chrome !== "undefined" && chrome.bookmarks) {
-      chrome.bookmarks.create(
-        {
-          parentId: parentId || undefined,
-          title,
-          url,
-        },
-        () => {
-          loadBookmarks();
-        }
-      );
-    }
-  }, [loadBookmarks]);
+  const updateBookmark = useCallback((
+    id: number,
+    updates: { note?: string; rating?: number; screenshot?: string }
+  ) => {
+    updateBookmarkMutation.mutate({
+      id,
+      ...updates,
+    });
+  }, [updateBookmarkMutation]);
 
-  const deleteBookmark = useCallback((id: string, isFolder: boolean) => {
-    if (typeof chrome !== "undefined" && chrome.bookmarks) {
-      if (isFolder) {
-        // It's a folder, remove it recursively
-        chrome.bookmarks.removeTree(id, () => {
-          loadBookmarks();
-        });
-      } else {
-        // It's a bookmark, just remove it
-        chrome.bookmarks.remove(id, () => {
-          loadBookmarks();
-        });
-      }
-    }
-  }, [loadBookmarks]);
-
-  const moveBookmark = useCallback((itemId: string, targetFolderId: string) => {
-    if (typeof chrome !== "undefined" && chrome.bookmarks) {
-      chrome.bookmarks.move(itemId, { parentId: targetFolderId }, () => {
-        loadBookmarks();
-      });
-    }
-  }, [loadBookmarks]);
+  const deleteBookmark = useCallback((id: number) => {
+    deleteBookmarkMutation.mutate({ id });
+  }, [deleteBookmarkMutation]);
 
   return {
-    bookmarks,
+    bookmarks: bookmarks as BookmarkWithTags[],
     loading,
     loadBookmarks,
     addBookmark,
+    updateBookmark,
     deleteBookmark,
-    moveBookmark,
   };
 };

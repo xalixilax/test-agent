@@ -1,71 +1,167 @@
-import { useEffect } from "react";
+import { useEffect, useState, useCallback } from "react";
 import BookmarkList from "./components/BookmarkList";
 import SearchBar from "./components/SearchBar";
 import AddBookmark from "./components/AddBookmark";
-import Breadcrumb from "./components/Breadcrumb";
 import { openFullScreen } from "./hooks/useExtension";
 import { useBookmarks } from "./hooks/useBookmarks";
-import { useScreenshots } from "./hooks/useScreenshots";
-import { useCurrentTab } from "./hooks/useCurrentTab";
-import { useBookmarkNavigation } from "./hooks/useBookmarkNavigation";
+import { useUpdateBookmark, useSyncChromeBookmarks } from "./db/useBookmark";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-function App() {
-  const {
-    bookmarks,
-    loading,
-    loadBookmarks,
-    addBookmark,
-    deleteBookmark,
-    moveBookmark,
-  } = useBookmarks();
-  const { screenshots, loadScreenshots, captureScreenshot, deleteScreenshot } =
-    useScreenshots();
-  const { currentTab, checkCurrentTab } = useCurrentTab();
-  const {
-    currentFolderId,
-    breadcrumbPath,
-    searchTerm,
-    filteredBookmarks,
-    navigateToFolder,
-    setSearchTerm,
-  } = useBookmarkNavigation({ bookmarks, screenshots });
+const queryClient = new QueryClient();
+
+// Helper function to flatten Chrome bookmark tree
+const flattenChromeBookmarks = (nodes: chrome.bookmarks.BookmarkTreeNode[]): Array<{chromeBookmarkId: string; title: string; url: string}> => {
+  let result: Array<{chromeBookmarkId: string; title: string; url: string}> = [];
+  
+  for (const node of nodes) {
+    if (node.url) {
+      result.push({
+        chromeBookmarkId: node.id,
+        title: node.title || "Untitled",
+        url: node.url,
+      });
+    }
+    if (node.children) {
+      result = result.concat(flattenChromeBookmarks(node.children));
+    }
+  }
+  
+  return result;
+};
+
+function BookmarkManager() {
+  const { bookmarks, loading, loadBookmarks, addBookmark, deleteBookmark } =
+    useBookmarks();
+
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isSyncing, setIsSyncing] = useState(false);
+  const updateBookmarkMutation = useUpdateBookmark();
+  const syncChromeBookmarksMutation = useSyncChromeBookmarks();
+
+  const filteredBookmarks = searchTerm
+    ? bookmarks.filter(
+        (bookmark) =>
+          bookmark.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          bookmark.url.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          bookmark.note?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          bookmark.tags?.some((tag) =>
+            tag.name.toLowerCase().includes(searchTerm.toLowerCase())
+          )
+      )
+    : bookmarks;
+
+  // Sync Chrome bookmarks on mount
+  useEffect(() => {
+    const syncBookmarks = async () => {
+      if (typeof chrome !== 'undefined' && chrome.bookmarks) {
+        try {
+          setIsSyncing(true);
+          const tree = await chrome.bookmarks.getTree();
+          const flatBookmarks = flattenChromeBookmarks(tree);
+          
+          // Get screenshots from Chrome storage
+          const result = await chrome.storage.local.get('screenshots');
+          const screenshots: Record<string, { dataUrl: string; timestamp: number; url: string }> = (result.screenshots as Record<string, { dataUrl: string; timestamp: number; url: string }>) || {};
+          
+          // Add screenshot data to bookmarks
+          const bookmarksWithScreenshots = flatBookmarks.map(bookmark => ({
+            ...bookmark,
+            screenshot: screenshots[bookmark.chromeBookmarkId]?.dataUrl || undefined,
+          }));
+          
+          await syncChromeBookmarksMutation.mutateAsync({
+            bookmarks: bookmarksWithScreenshots,
+          });
+          
+          console.log(`Synced ${flatBookmarks.length} Chrome bookmarks`);
+        } catch (error) {
+          console.error('Failed to sync Chrome bookmarks:', error);
+        } finally {
+          setIsSyncing(false);
+        }
+      }
+    };
+
+    syncBookmarks();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount
 
   useEffect(() => {
     loadBookmarks();
-    loadScreenshots();
-    checkCurrentTab();
-  }, [loadBookmarks, loadScreenshots, checkCurrentTab]);
-
-  // Auto-capture screenshot if bookmarked and no screenshot exists
-  useEffect(() => {
-    if (
-      currentTab?.isBookmarked &&
-      currentTab.bookmark &&
-      !currentTab.bookmark.hasScreenshot
-    ) {
-      captureScreenshot(currentTab.bookmark.id, currentTab.bookmark.url);
-    }
-  }, [currentTab, captureScreenshot]);
+  }, [loadBookmarks]);
 
   const handleAddBookmark = (title: string, url: string) => {
-    addBookmark(title, url, currentFolderId);
+    addBookmark(title, url);
   };
 
-  const handleDeleteBookmark = (id: string) => {
-    // Find the item in the current folder to check if it's a folder or bookmark
-    const currentItems = filteredBookmarks;
-    const item = currentItems.find((i) => i.id === id);
-    const isFolder = item && !item.url && Array.isArray(item.children);
-    deleteBookmark(id, isFolder || false);
+  const handleDeleteBookmark = (id: number) => {
+    deleteBookmark(id);
   };
 
-  if (loading) {
+  const captureScreenshot = useCallback(async (id: number, url: string) => {
+    // Find the bookmark to get its Chrome bookmark ID
+    const bookmark = bookmarks.find(b => b.id === id);
+    if (!bookmark?.chromeBookmarkId || typeof chrome === 'undefined') {
+      console.error('Cannot capture screenshot: Chrome bookmark ID not found');
+      return;
+    }
+
+    // Send message to background script to capture screenshot
+    chrome.runtime.sendMessage(
+      { 
+        action: 'captureScreenshot', 
+        bookmarkId: bookmark.chromeBookmarkId, 
+        url 
+      },
+      (response) => {
+        if (response?.success && response?.dataUrl) {
+          // Update the database with the screenshot
+          updateBookmarkMutation.mutate({ 
+            id, 
+            screenshot: response.dataUrl 
+          });
+        } else {
+          console.error('Failed to capture screenshot:', response?.error);
+        }
+      }
+    );
+  }, [bookmarks, updateBookmarkMutation]);
+
+  const deleteScreenshot = useCallback(
+    async (id: number) => {
+      // Find the bookmark to get its Chrome bookmark ID
+      const bookmark = bookmarks.find(b => b.id === id);
+      
+      // Delete from Chrome storage if we have the Chrome bookmark ID
+      if (bookmark?.chromeBookmarkId && typeof chrome !== 'undefined') {
+        chrome.runtime.sendMessage(
+          { 
+            action: 'deleteScreenshot', 
+            bookmarkId: bookmark.chromeBookmarkId 
+          },
+          (response) => {
+            if (!response?.success) {
+              console.error('Failed to delete screenshot from Chrome storage:', response?.error);
+            }
+          }
+        );
+      }
+      
+      // Delete from database
+      updateBookmarkMutation.mutate({ id, screenshot: "" });
+    },
+    [bookmarks, updateBookmarkMutation]
+  );
+
+  if (loading || isSyncing) {
     return (
       <div
         className="flex items-center justify-center h-screen"
         style={{ background: "var(--color-bg)" }}
       >
-        <div className="text-2xl font-bold">LOADING...</div>
+        <div className="text-2xl font-bold">
+          {isSyncing ? "SYNCING BOOKMARKS..." : "LOADING..."}
+        </div>
       </div>
     );
   }
@@ -100,62 +196,26 @@ function App() {
           </div>
         </div>
 
-        {/* Current tab status indicator */}
-        {currentTab && currentTab.isBookmarked && currentTab.bookmark && (
-          <div
-            className="mx-2 sm:mx-4 md:mx-6 mt-3 sm:mt-4 p-3 sm:p-4 border-3 border-black shadow-brutal"
-            style={{ background: "var(--color-success)" }}
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex items-start gap-2 flex-1 min-w-0">
-                <span className="text-xl sm:text-2xl shrink-0">⭐</span>
-                <div className="flex-1 min-w-0">
-                  <p className="font-black text-xs sm:text-sm">
-                    CURRENT PAGE IS BOOKMARKED!
-                  </p>
-                  <p
-                    className="font-bold text-xs mt-1 truncate"
-                    title={currentTab.bookmark.title}
-                  >
-                    {currentTab.bookmark.title}
-                  </p>
-                </div>
-              </div>
-              {!currentTab.bookmark.hasScreenshot && (
-                <button
-                  onClick={() =>
-                    captureScreenshot(
-                      currentTab.bookmark!.id,
-                      currentTab.bookmark!.url
-                    )
-                  }
-                  className="btn-brutal px-2 sm:px-3 py-1 sm:py-2 text-xs font-black bg-white shrink-0"
-                  title="Capture screenshot for this page"
-                >
-                  📷 CAPTURE
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-
         <div className="p-2 sm:p-4 md:p-6 space-y-3 sm:space-y-4">
           <AddBookmark onAdd={handleAddBookmark} />
           <SearchBar searchTerm={searchTerm} onSearch={setSearchTerm} />
-          {!searchTerm && (
-            <Breadcrumb path={breadcrumbPath} onNavigate={navigateToFolder} />
-          )}
           <BookmarkList
             items={filteredBookmarks}
             onDelete={handleDeleteBookmark}
             onCaptureScreenshot={captureScreenshot}
             onDeleteScreenshot={deleteScreenshot}
-            onFolderClick={navigateToFolder}
-            onMove={moveBookmark}
           />
         </div>
       </div>
     </div>
+  );
+}
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <BookmarkManager />
+    </QueryClientProvider>
   );
 }
 

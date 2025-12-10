@@ -26,6 +26,7 @@ export const useAddBookmarkTag = (
 			client.addBookmarkTag.mutate(input),
 		onSuccess: (...args) => {
 			void queryClient.invalidateQueries({ queryKey: ["getBookmarks"] });
+			void queryClient.invalidateQueries({ queryKey: ["getBookmarksWithTags"] });
 			void queryClient.invalidateQueries({ queryKey: ["getTags"] });
 			options?.onSuccess?.(...args);
 		},
@@ -49,6 +50,7 @@ export const useDeleteBookmarkTag = (
 		mutationFn: (input) => client.deleteBookmarkTag.mutate(input),
 		onSuccess: (...args) => {
 			void queryClient.invalidateQueries({ queryKey: ["getBookmarks"] });
+			void queryClient.invalidateQueries({ queryKey: ["getBookmarksWithTags"] });
 			void queryClient.invalidateQueries({ queryKey: ["getTags"] });
 			options?.onSuccess?.(...args);
 		},

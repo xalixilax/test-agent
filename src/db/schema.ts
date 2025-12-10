@@ -1,9 +1,16 @@
-import { integer, pgTable, serial, text, timestamp, real, primaryKey } from "drizzle-orm/pg-core";
+import { integer, pgTable, serial, text, timestamp, real, primaryKey, pgSchema } from "drizzle-orm/pg-core";
+
+const customSchema = pgSchema('custom')
 
 export const bookmarks = pgTable("bookmarks", {
 	id: serial("id").primaryKey(),
+	chromeBookmarkId: text("chrome_bookmark_id").unique(),
+	title: text("title").notNull(),
+	url: text("url").notNull(),
 	note: text("note"),
 	rating: real("rating"), // 0-5 star rating
+	dateAdded: timestamp("date_added").defaultNow(),
+	screenshot: text("screenshot"), // base64 or URL to screenshot
 });
 
 export const tags = pgTable("tags", {

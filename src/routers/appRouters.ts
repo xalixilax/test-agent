@@ -7,14 +7,20 @@ import { createRouter, mutation, query } from "../lib/worker/router";
 
 // Bookmark schemas
 const addBookmarkSchema = z.object({
+	title: z.string().min(1, "Title is required"),
+	url: z.string().url("Valid URL is required"),
 	note: z.string().optional(),
 	rating: z.number().min(0).max(5).optional(),
+	screenshot: z.string().optional(),
 });
 
 const updateBookmarkSchema = z.object({
 	id: z.number().int().positive(),
-	note: z.string().optional(),
-	rating: z.number().min(0).max(5).optional(),
+	title: z.string().min(1, "Title is required").optional(),
+	url: z.string().url("Valid URL is required").optional(),
+	note: z.string().optional().nullable(),
+	rating: z.number().min(0).max(5).optional().nullable(),
+	screenshot: z.string().optional().nullable(),
 });
 
 const deleteBookmarkSchema = z.object({
@@ -46,6 +52,16 @@ const deleteBookmarkTagSchema = z.object({
 	tagId: z.number().int().positive(),
 });
 
+// Chrome bookmark sync schema
+const syncChromeBookmarksSchema = z.object({
+	bookmarks: z.array(z.object({
+		chromeBookmarkId: z.string(),
+		title: z.string(),
+		url: z.string(),
+		screenshot: z.string().optional(),
+	})),
+});
+
 export const createAppRouter = (context: {
 	db: any;
 	log: (...args: string[]) => void;
@@ -56,6 +72,31 @@ export const createAppRouter = (context: {
 		getBookmarks: query({
 			handler: async (): Promise<Bookmark[]> => {
 				return await context.db.select().from(bookmarks).orderBy(bookmarks.id);
+			},
+		}),
+
+		getBookmarksWithTags: query({
+			handler: async () => {
+				// Get all bookmarks
+				const allBookmarks = await context.db.select().from(bookmarks).orderBy(bookmarks.id);
+				
+				// Get all bookmark-tag relationships
+				const allBookmarkTags = await context.db
+					.select({
+						bookmarkId: bookmarkTags.bookmarkId,
+						tagId: bookmarkTags.tagId,
+						tagName: tags.name,
+					})
+					.from(bookmarkTags)
+					.leftJoin(tags, eq(bookmarkTags.tagId, tags.id));
+
+				// Combine bookmarks with their tags
+				return allBookmarks.map((bookmark: Bookmark) => ({
+					...bookmark,
+					tags: allBookmarkTags
+						.filter((bt: any) => bt.bookmarkId === bookmark.id)
+						.map((bt: any) => ({ id: bt.tagId, name: bt.tagName || '' })),
+				}));
 			},
 		}),
 
@@ -166,6 +207,58 @@ export const createAppRouter = (context: {
 						)
 					);
 				return { bookmarkId: input.bookmarkId, tagId: input.tagId };
+			},
+		}),
+
+		// Chrome bookmarks sync
+		syncChromeBookmarks: mutation({
+			input: syncChromeBookmarksSchema,
+			handler: async (input): Promise<{ synced: number; updated: number }> => {
+				let synced = 0;
+				let updated = 0;
+
+				for (const chromeBookmark of input.bookmarks) {
+					// Check if bookmark already exists by Chrome bookmark ID
+					const existing = await context.db
+						.select()
+						.from(bookmarks)
+						.where(eq(bookmarks.chromeBookmarkId, chromeBookmark.chromeBookmarkId))
+						.limit(1);
+
+					if (existing.length > 0) {
+						// Update existing bookmark if title, URL, or screenshot changed
+						const existingBookmark = existing[0];
+						const hasChanges = 
+							existingBookmark.title !== chromeBookmark.title || 
+							existingBookmark.url !== chromeBookmark.url ||
+							(chromeBookmark.screenshot && existingBookmark.screenshot !== chromeBookmark.screenshot);
+						
+						if (hasChanges) {
+							await context.db
+								.update(bookmarks)
+								.set({
+									title: chromeBookmark.title,
+									url: chromeBookmark.url,
+									screenshot: chromeBookmark.screenshot || existingBookmark.screenshot,
+								})
+								.where(eq(bookmarks.chromeBookmarkId, chromeBookmark.chromeBookmarkId));
+							updated++;
+						}
+					} else {
+						// Insert new bookmark
+						await context.db
+							.insert(bookmarks)
+							.values({
+								chromeBookmarkId: chromeBookmark.chromeBookmarkId,
+								title: chromeBookmark.title,
+								url: chromeBookmark.url,
+								screenshot: chromeBookmark.screenshot,
+							});
+						synced++;
+					}
+				}
+
+				return { synced, updated };
 			},
 		}),
 	});

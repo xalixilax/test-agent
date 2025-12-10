@@ -26,6 +26,21 @@ export const useBookmarks = (
 	});
 };
 
+export const useBookmarksWithTags = (
+	options?: Omit<
+		UseQueryOptions<InferOutput<AppRouter["getBookmarksWithTags"]>, Error>,
+		"queryKey" | "queryFn"
+	>,
+) => {
+	return useQuery({
+		queryKey: ["getBookmarksWithTags"],
+		queryFn: () => client.getBookmarksWithTags.query(),
+		retry: 3,
+		retryDelay: 1000,
+		...options,
+	});
+};
+
 export const useAddBookmark = (
 	options?: Omit<
 		UseMutationOptions<
@@ -43,6 +58,7 @@ export const useAddBookmark = (
 			client.addBookmark.mutate(input),
 		onSuccess: (...args) => {
 			void queryClient.invalidateQueries({ queryKey: ["getBookmarks"] });
+			void queryClient.invalidateQueries({ queryKey: ["getBookmarksWithTags"] });
 			options?.onSuccess?.(...args);
 		},
 		...options,
@@ -65,6 +81,7 @@ export const useUpdateBookmark = (
 		mutationFn: (input) => client.updateBookmark.mutate(input),
 		onSuccess: (...args) => {
 			void queryClient.invalidateQueries({ queryKey: ["getBookmarks"] });
+			void queryClient.invalidateQueries({ queryKey: ["getBookmarksWithTags"] });
 			options?.onSuccess?.(...args);
 		},
 		...options,
@@ -87,6 +104,30 @@ export const useDeleteBookmark = (
 		mutationFn: (input) => client.deleteBookmark.mutate(input),
 		onSuccess: (...args) => {
 			void queryClient.invalidateQueries({ queryKey: ["getBookmarks"] });
+			void queryClient.invalidateQueries({ queryKey: ["getBookmarksWithTags"] });
+			options?.onSuccess?.(...args);
+		},
+		...options,
+	});
+};
+
+export const useSyncChromeBookmarks = (
+	options?: Omit<
+		UseMutationOptions<
+			InferOutput<AppRouter["syncChromeBookmarks"]>,
+			Error,
+			InferInput<AppRouter["syncChromeBookmarks"]>
+		>,
+		"mutationFn"
+	>,
+) => {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		mutationFn: (input) => client.syncChromeBookmarks.mutate(input),
+		onSuccess: (...args) => {
+			void queryClient.invalidateQueries({ queryKey: ["getBookmarks"] });
+			void queryClient.invalidateQueries({ queryKey: ["getBookmarksWithTags"] });
 			options?.onSuccess?.(...args);
 		},
 		...options,
