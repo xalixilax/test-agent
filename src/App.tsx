@@ -10,9 +10,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 const queryClient = new QueryClient();
 
 // Helper function to flatten Chrome bookmark tree
-const flattenChromeBookmarks = (nodes: chrome.bookmarks.BookmarkTreeNode[]): Array<{chromeBookmarkId: string; title: string; url: string}> => {
-  let result: Array<{chromeBookmarkId: string; title: string; url: string}> = [];
-  
+const flattenChromeBookmarks = (
+  nodes: chrome.bookmarks.BookmarkTreeNode[]
+): Array<{ chromeBookmarkId: string; title: string; url: string }> => {
+  let result: Array<{ chromeBookmarkId: string; title: string; url: string }> =
+    [];
+
   for (const node of nodes) {
     if (node.url) {
       result.push({
@@ -25,7 +28,7 @@ const flattenChromeBookmarks = (nodes: chrome.bookmarks.BookmarkTreeNode[]): Arr
       result = result.concat(flattenChromeBookmarks(node.children));
     }
   }
-  
+
   return result;
 };
 
@@ -53,29 +56,37 @@ function BookmarkManager() {
   // Sync Chrome bookmarks on mount
   useEffect(() => {
     const syncBookmarks = async () => {
-      if (typeof chrome !== 'undefined' && chrome.bookmarks) {
+      if (typeof chrome !== "undefined" && chrome.bookmarks) {
         try {
           setIsSyncing(true);
           const tree = await chrome.bookmarks.getTree();
           const flatBookmarks = flattenChromeBookmarks(tree);
-          
+
           // Get screenshots from Chrome storage
-          const result = await chrome.storage.local.get('screenshots');
-          const screenshots: Record<string, { dataUrl: string; timestamp: number; url: string }> = (result.screenshots as Record<string, { dataUrl: string; timestamp: number; url: string }>) || {};
-          
+          const result = await chrome.storage.local.get("screenshots");
+          const screenshots: Record<
+            string,
+            { dataUrl: string; timestamp: number; url: string }
+          > =
+            (result.screenshots as Record<
+              string,
+              { dataUrl: string; timestamp: number; url: string }
+            >) || {};
+
           // Add screenshot data to bookmarks
-          const bookmarksWithScreenshots = flatBookmarks.map(bookmark => ({
+          const bookmarksWithScreenshots = flatBookmarks.map((bookmark) => ({
             ...bookmark,
-            screenshot: screenshots[bookmark.chromeBookmarkId]?.dataUrl || undefined,
+            screenshot:
+              screenshots[bookmark.chromeBookmarkId]?.dataUrl || undefined,
           }));
-          
+
           await syncChromeBookmarksMutation.mutateAsync({
             bookmarks: bookmarksWithScreenshots,
           });
-          
+
           console.log(`Synced ${flatBookmarks.length} Chrome bookmarks`);
         } catch (error) {
-          console.error('Failed to sync Chrome bookmarks:', error);
+          console.error("Failed to sync Chrome bookmarks:", error);
         } finally {
           setIsSyncing(false);
         }
@@ -98,55 +109,63 @@ function BookmarkManager() {
     deleteBookmark(id);
   };
 
-  const captureScreenshot = useCallback(async (id: number, url: string) => {
-    // Find the bookmark to get its Chrome bookmark ID
-    const bookmark = bookmarks.find(b => b.id === id);
-    if (!bookmark?.chromeBookmarkId || typeof chrome === 'undefined') {
-      console.error('Cannot capture screenshot: Chrome bookmark ID not found');
-      return;
-    }
-
-    // Send message to background script to capture screenshot
-    chrome.runtime.sendMessage(
-      { 
-        action: 'captureScreenshot', 
-        bookmarkId: bookmark.chromeBookmarkId, 
-        url 
-      },
-      (response) => {
-        if (response?.success && response?.dataUrl) {
-          // Update the database with the screenshot
-          updateBookmarkMutation.mutate({ 
-            id, 
-            screenshot: response.dataUrl 
-          });
-        } else {
-          console.error('Failed to capture screenshot:', response?.error);
-        }
+  const captureScreenshot = useCallback(
+    async (id: number, url: string) => {
+      // Find the bookmark to get its Chrome bookmark ID
+      const bookmark = bookmarks.find((b) => b.id === id);
+      if (!bookmark?.chromeBookmarkId || typeof chrome === "undefined") {
+        console.error(
+          "Cannot capture screenshot: Chrome bookmark ID not found"
+        );
+        return;
       }
-    );
-  }, [bookmarks, updateBookmarkMutation]);
+
+      // Send message to background script to capture screenshot
+      chrome.runtime.sendMessage(
+        {
+          action: "captureScreenshot",
+          bookmarkId: bookmark.chromeBookmarkId,
+          url,
+        },
+        (response) => {
+          if (response?.success && response?.dataUrl) {
+            // Update the database with the screenshot
+            updateBookmarkMutation.mutate({
+              id,
+              screenshot: response.dataUrl,
+            });
+          } else {
+            console.error("Failed to capture screenshot:", response?.error);
+          }
+        }
+      );
+    },
+    [bookmarks, updateBookmarkMutation]
+  );
 
   const deleteScreenshot = useCallback(
     async (id: number) => {
       // Find the bookmark to get its Chrome bookmark ID
-      const bookmark = bookmarks.find(b => b.id === id);
-      
+      const bookmark = bookmarks.find((b) => b.id === id);
+
       // Delete from Chrome storage if we have the Chrome bookmark ID
-      if (bookmark?.chromeBookmarkId && typeof chrome !== 'undefined') {
+      if (bookmark?.chromeBookmarkId && typeof chrome !== "undefined") {
         chrome.runtime.sendMessage(
-          { 
-            action: 'deleteScreenshot', 
-            bookmarkId: bookmark.chromeBookmarkId 
+          {
+            action: "deleteScreenshot",
+            bookmarkId: bookmark.chromeBookmarkId,
           },
           (response) => {
             if (!response?.success) {
-              console.error('Failed to delete screenshot from Chrome storage:', response?.error);
+              console.error(
+                "Failed to delete screenshot from Chrome storage:",
+                response?.error
+              );
             }
           }
         );
       }
-      
+
       // Delete from database
       updateBookmarkMutation.mutate({ id, screenshot: "" });
     },
