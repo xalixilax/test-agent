@@ -27,7 +27,7 @@ function BookmarkMetadata({ bookmarkId, rating, note, tags, onUpdate }: Bookmark
     setIsSaving(true);
     try {
       await onUpdate(bookmarkId, {
-        rating: editRating > 0 ? editRating : undefined,
+        rating: editRating > 0 && editRating <= 5 ? editRating : undefined,
         note: editNote || undefined,
         tags: editTags || undefined,
       });

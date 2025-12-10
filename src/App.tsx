@@ -98,10 +98,13 @@ function App() {
         });
       }
       
-      // Update local state
+      // Update local state - merge with existing metadata
       setBookmarkMetadata(prev => ({
         ...prev,
-        [id]: data
+        [id]: {
+          ...prev[id],
+          ...data
+        }
       }));
     } catch (error) {
       console.error('Failed to update bookmark metadata:', error);
