@@ -1,29 +1,49 @@
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { z } from "zod";
-import { type User, users } from "../db/schema";
+import { type Bookmark, bookmarks, type Tag, tags, type BookmarkTag, bookmarkTags } from "../db/schema";
 import { createRouter, mutation, query } from "../lib/worker/router";
 
 // Input schemas
-const addUserSchema = z.object({
-	name: z.string().min(1, "Name is required"),
-	email: z
-		.string()
-		.min(1, "Email is required")
-		.email("Please enter a valid email address"),
-	age: z.number().int().positive("Age must be a positive number"),
-	city: z.string().optional(),
+
+// Bookmark schemas
+const addBookmarkSchema = z.object({
+	note: z.string().optional(),
+	rating: z.number().min(0).max(5).optional(),
 });
 
-const updateUserSchema = z.object({
+const updateBookmarkSchema = z.object({
 	id: z.number().int().positive(),
-	name: z.string().min(1).optional(),
-	email: z.string().email("Please enter a valid email address").optional(),
-	age: z.number().int().positive().optional(),
-	city: z.string().optional(),
+	note: z.string().optional(),
+	rating: z.number().min(0).max(5).optional(),
 });
 
-const deleteUserSchema = z.object({
+const deleteBookmarkSchema = z.object({
 	id: z.number().int().positive(),
+});
+
+// Tag schemas
+const addTagSchema = z.object({
+	name: z.string().min(1, "Tag name is required"),
+});
+
+const updateTagSchema = z.object({
+	id: z.number().int().positive(),
+	name: z.string().min(1, "Tag name is required"),
+});
+
+const deleteTagSchema = z.object({
+	id: z.number().int().positive(),
+});
+
+// BookmarkTag schemas
+const addBookmarkTagSchema = z.object({
+	bookmarkId: z.number().int().positive(),
+	tagId: z.number().int().positive(),
+});
+
+const deleteBookmarkTagSchema = z.object({
+	bookmarkId: z.number().int().positive(),
+	tagId: z.number().int().positive(),
 });
 
 export const createAppRouter = (context: {
@@ -32,47 +52,120 @@ export const createAppRouter = (context: {
 	error: (...args: string[]) => void;
 }) => {
 	return createRouter({
-		getUsers: query({
-			handler: async (): Promise<User[]> => {
-				return await context.db.select().from(users).orderBy(users.id);
+		// Bookmark queries and mutations
+		getBookmarks: query({
+			handler: async (): Promise<Bookmark[]> => {
+				return await context.db.select().from(bookmarks).orderBy(bookmarks.id);
 			},
 		}),
 
-		addUser: mutation({
-			input: addUserSchema,
-			handler: async (input): Promise<User> => {
-				const [newUser] = await context.db
-					.insert(users)
+		addBookmark: mutation({
+			input: addBookmarkSchema,
+			handler: async (input): Promise<Bookmark> => {
+				const [newBookmark] = await context.db
+					.insert(bookmarks)
 					.values(input)
 					.returning();
-				return newUser;
+				return newBookmark;
 			},
 		}),
 
-		updateUser: mutation({
-			input: updateUserSchema,
-			handler: async (input): Promise<User> => {
+		updateBookmark: mutation({
+			input: updateBookmarkSchema,
+			handler: async (input): Promise<Bookmark> => {
 				const { id, ...updateData } = input;
 
 				if (Object.keys(updateData).length === 0) {
 					throw new Error("No fields to update");
 				}
 
-				const [updatedUser] = await context.db
-					.update(users)
+				const [updatedBookmark] = await context.db
+					.update(bookmarks)
 					.set(updateData)
-					.where(eq(users.id, id))
+					.where(eq(bookmarks.id, id))
 					.returning();
 
-				return updatedUser;
+				return updatedBookmark;
 			},
 		}),
 
-		deleteUser: mutation({
-			input: deleteUserSchema,
+		deleteBookmark: mutation({
+			input: deleteBookmarkSchema,
 			handler: async (input): Promise<{ id: number }> => {
-				await context.db.delete(users).where(eq(users.id, input.id));
+				await context.db.delete(bookmarks).where(eq(bookmarks.id, input.id));
 				return { id: input.id };
+			},
+		}),
+
+		// Tag queries and mutations
+		getTags: query({
+			handler: async (): Promise<Tag[]> => {
+				return await context.db.select().from(tags).orderBy(tags.id);
+			},
+		}),
+
+		addTag: mutation({
+			input: addTagSchema,
+			handler: async (input): Promise<Tag> => {
+				const [newTag] = await context.db
+					.insert(tags)
+					.values(input)
+					.returning();
+				return newTag;
+			},
+		}),
+
+		updateTag: mutation({
+			input: updateTagSchema,
+			handler: async (input): Promise<Tag> => {
+				const { id, ...updateData } = input;
+
+				if (Object.keys(updateData).length === 0) {
+					throw new Error("No fields to update");
+				}
+
+				const [updatedTag] = await context.db
+					.update(tags)
+					.set(updateData)
+					.where(eq(tags.id, id))
+					.returning();
+
+				return updatedTag;
+			},
+		}),
+
+		deleteTag: mutation({
+			input: deleteTagSchema,
+			handler: async (input): Promise<{ id: number }> => {
+				await context.db.delete(tags).where(eq(tags.id, input.id));
+				return { id: input.id };
+			},
+		}),
+
+		// BookmarkTag mutations
+		addBookmarkTag: mutation({
+			input: addBookmarkTagSchema,
+			handler: async (input): Promise<BookmarkTag> => {
+				const [newBookmarkTag] = await context.db
+					.insert(bookmarkTags)
+					.values(input)
+					.returning();
+				return newBookmarkTag;
+			},
+		}),
+
+		deleteBookmarkTag: mutation({
+			input: deleteBookmarkTagSchema,
+			handler: async (input): Promise<{ bookmarkId: number; tagId: number }> => {
+				await context.db
+					.delete(bookmarkTags)
+					.where(
+						and(
+							eq(bookmarkTags.bookmarkId, input.bookmarkId),
+							eq(bookmarkTags.tagId, input.tagId)
+						)
+					);
+				return { bookmarkId: input.bookmarkId, tagId: input.tagId };
 			},
 		}),
 	});

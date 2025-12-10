@@ -1,7 +1,6 @@
 import { PGlite } from "@electric-sql/pglite";
 import { OpfsAhpFS } from "@electric-sql/pglite/opfs-ahp";
 import { drizzle } from "drizzle-orm/pglite";
-import { users } from "./schema";
 import migrationsData from "./migrations.json";
 
 interface Migration {
@@ -11,7 +10,7 @@ interface Migration {
 
 const migrations = migrationsData as Migration[];
 
-let db: ReturnType<typeof drizzle<{ users: typeof users }>>;
+let db: ReturnType<typeof drizzle>;
 let client: PGlite;
 
 async function initDb() {
@@ -21,7 +20,7 @@ async function initDb() {
 	await client.waitReady;
 	console.log("[DB] PGlite client ready");
 
-	db = drizzle(client, { schema: { users } });
+	db = drizzle(client);
 	console.log("[DB] Drizzle instance created");
 
 	// Run custom migrations
