@@ -6,6 +6,9 @@ export type Bookmark = {
   children?: Bookmark[];
   screenshot?: string;
   parentId?: string;
+  rating?: number | null;
+  note?: string | null;
+  tags?: string | null;
 }
 
 export type BreadcrumbItem = {

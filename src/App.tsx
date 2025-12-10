@@ -5,6 +5,8 @@ import AddBookmark from "./components/AddBookmark";
 import Breadcrumb from "./components/Breadcrumb";
 import type { Bookmark, BreadcrumbItem } from "./types";
 import { openFullScreen } from "./hooks/useExtension";
+import { createWorkerClient } from "./lib/worker/client";
+import type { AppRouter } from "./routers/appRouters";
 
 function App() {
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
@@ -22,10 +24,15 @@ function App() {
       hasScreenshot: boolean;
     };
   } | null>(null);
+  const [bookmarkMetadata, setBookmarkMetadata] = useState<Record<string, { rating?: number | null; note?: string | null; tags?: string | null }>>({});
+  
+  // Initialize worker client
+  const workerClient = createWorkerClient<AppRouter>('/worker.js');
 
   useEffect(() => {
     loadBookmarks();
     loadScreenshots();
+    loadBookmarkMetadata();
     checkCurrentTab();
   }, []);
 
@@ -49,6 +56,73 @@ function App() {
         }
       });
     }
+  };
+
+  const loadBookmarkMetadata = async () => {
+    try {
+      const allMetadata = await workerClient.getBookmarks.query();
+      const metadataMap: Record<string, { rating?: number | null; note?: string | null; tags?: string | null }> = {};
+      allMetadata.forEach(bm => {
+        metadataMap[bm.id] = {
+          rating: bm.rating,
+          note: bm.note,
+          tags: bm.tags,
+        };
+      });
+      setBookmarkMetadata(metadataMap);
+    } catch (error) {
+      console.error('Failed to load bookmark metadata:', error);
+    }
+  };
+
+  const updateBookmarkMetadata = async (id: string, data: { rating?: number; note?: string; tags?: string }) => {
+    try {
+      // Check if bookmark exists in DB
+      const existing = await workerClient.getBookmark.query({ id });
+      
+      if (existing) {
+        // Update existing
+        await workerClient.updateBookmark.mutate({ id, ...data });
+      } else {
+        // Find bookmark in chrome bookmarks to get url and title
+        const chromeBookmark = findBookmarkById(bookmarks, id);
+        if (!chromeBookmark?.url || !chromeBookmark?.title) {
+          throw new Error('Bookmark not found');
+        }
+        // Add new
+        await workerClient.addBookmark.mutate({ 
+          id, 
+          url: chromeBookmark.url, 
+          title: chromeBookmark.title,
+          ...data 
+        });
+      }
+      
+      // Update local state - merge with existing metadata
+      setBookmarkMetadata(prev => ({
+        ...prev,
+        [id]: {
+          ...prev[id],
+          ...data
+        }
+      }));
+    } catch (error) {
+      console.error('Failed to update bookmark metadata:', error);
+      throw error;
+    }
+  };
+
+  const findBookmarkById = (nodes: Bookmark[], id: string): Bookmark | null => {
+    for (const node of nodes) {
+      if (node.id === id) {
+        return node;
+      }
+      if (node.children) {
+        const found = findBookmarkById(node.children, id);
+        if (found) return found;
+      }
+    }
+    return null;
   };
 
   const loadScreenshots = () => {
@@ -214,12 +288,13 @@ function App() {
     let result: Bookmark[] = [];
     nodes.forEach((node) => {
       if (node.url) {
-        // Add screenshot data if available
-        const bookmarkWithScreenshot = {
+        // Add screenshot data and metadata if available
+        const bookmarkWithData = {
           ...node,
           screenshot: screenshots[node.id]?.dataUrl,
+          ...bookmarkMetadata[node.id],
         };
-        result.push(bookmarkWithScreenshot);
+        result.push(bookmarkWithData);
       }
       if (node.children) {
         result = result.concat(flattenBookmarks(node.children));
@@ -279,12 +354,13 @@ function App() {
     const folder = findFolderById(bookmarks, currentFolderId);
     if (!folder || !folder.children) return [];
 
-    // Add screenshot data to bookmarks
+    // Add screenshot data and metadata to bookmarks
     return folder.children.map((item) => {
       if (item.url) {
         return {
           ...item,
           screenshot: screenshots[item.id]?.dataUrl,
+          ...bookmarkMetadata[item.id],
         };
       }
       return item;
@@ -372,6 +448,7 @@ function App() {
             onDeleteScreenshot={deleteScreenshot}
             onFolderClick={navigateToFolder}
             onMove={moveBookmark}
+            onUpdateMetadata={updateBookmarkMetadata}
           />
         </div>
       </div>

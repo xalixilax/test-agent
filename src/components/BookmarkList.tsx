@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { Bookmark } from '../types';
+import BookmarkMetadata from './BookmarkMetadata';
 
 interface BookmarkListProps {
   items: Bookmark[];
@@ -8,9 +9,10 @@ interface BookmarkListProps {
   onDeleteScreenshot: (id: string) => void;
   onFolderClick: (id: string) => void;
   onMove?: (itemId: string, targetFolderId: string) => void;
+  onUpdateMetadata: (id: string, data: { rating?: number; note?: string; tags?: string }) => Promise<void>;
 }
 
-function BookmarkList({ items, onDelete, onCaptureScreenshot, onDeleteScreenshot, onFolderClick, onMove }: BookmarkListProps) {
+function BookmarkList({ items, onDelete, onCaptureScreenshot, onDeleteScreenshot, onFolderClick, onMove, onUpdateMetadata }: BookmarkListProps) {
   const [selectedScreenshot, setSelectedScreenshot] = useState<string | null>(null);
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -209,6 +211,15 @@ function BookmarkList({ items, onDelete, onCaptureScreenshot, onDeleteScreenshot
                   <p className="text-xs font-bold mt-auto" style={{ opacity: 0.6 }}>
                     {formatDate(item.dateAdded)}
                   </p>
+
+                  {/* Bookmark Metadata Section */}
+                  <BookmarkMetadata
+                    bookmarkId={item.id}
+                    rating={item.rating}
+                    note={item.note}
+                    tags={item.tags}
+                    onUpdate={onUpdateMetadata}
+                  />
                 </div>
               )}
               
