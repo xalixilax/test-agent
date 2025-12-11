@@ -41,6 +41,22 @@ export const useBookmarksWithTags = (
 	});
 };
 
+export const useBookmarksByParent = (
+	parentId: number | null,
+	options?: Omit<
+		UseQueryOptions<InferOutput<AppRouter["getBookmarksByParent"]>, Error>,
+		"queryKey" | "queryFn"
+	>,
+) => {
+	return useQuery({
+		queryKey: ["getBookmarksByParent", parentId],
+		queryFn: () => client.getBookmarksByParent.query({ parentId }),
+		retry: 3,
+		retryDelay: 1000,
+		...options,
+	});
+};
+
 export const useAddBookmark = (
 	options?: Omit<
 		UseMutationOptions<
@@ -59,6 +75,7 @@ export const useAddBookmark = (
 		onSuccess: (...args) => {
 			void queryClient.invalidateQueries({ queryKey: ["getBookmarks"] });
 			void queryClient.invalidateQueries({ queryKey: ["getBookmarksWithTags"] });
+			void queryClient.invalidateQueries({ queryKey: ["getBookmarksByParent"] });
 			options?.onSuccess?.(...args);
 		},
 		...options,
@@ -82,6 +99,7 @@ export const useUpdateBookmark = (
 		onSuccess: (...args) => {
 			void queryClient.invalidateQueries({ queryKey: ["getBookmarks"] });
 			void queryClient.invalidateQueries({ queryKey: ["getBookmarksWithTags"] });
+			void queryClient.invalidateQueries({ queryKey: ["getBookmarksByParent"] });
 			options?.onSuccess?.(...args);
 		},
 		...options,
@@ -105,6 +123,7 @@ export const useDeleteBookmark = (
 		onSuccess: (...args) => {
 			void queryClient.invalidateQueries({ queryKey: ["getBookmarks"] });
 			void queryClient.invalidateQueries({ queryKey: ["getBookmarksWithTags"] });
+			void queryClient.invalidateQueries({ queryKey: ["getBookmarksByParent"] });
 			options?.onSuccess?.(...args);
 		},
 		...options,
@@ -128,6 +147,7 @@ export const useSyncChromeBookmarks = (
 		onSuccess: (...args) => {
 			void queryClient.invalidateQueries({ queryKey: ["getBookmarks"] });
 			void queryClient.invalidateQueries({ queryKey: ["getBookmarksWithTags"] });
+			void queryClient.invalidateQueries({ queryKey: ["getBookmarksByParent"] });
 			options?.onSuccess?.(...args);
 		},
 		...options,

@@ -9,6 +9,8 @@ interface BookmarkListProps {
   onDelete: (id: number) => void;
   onCaptureScreenshot: (id: number, url: string) => void;
   onDeleteScreenshot: (id: number) => void;
+  onNavigateToFolder: (folderId: number, folderTitle: string) => void;
+  isSearching: boolean;
 }
 
 function BookmarkList({
@@ -16,6 +18,8 @@ function BookmarkList({
   onDelete,
   onCaptureScreenshot,
   onDeleteScreenshot,
+  onNavigateToFolder,
+  isSearching,
 }: BookmarkListProps) {
   const [selectedScreenshot, setSelectedScreenshot] = useState<string | null>(
     null
@@ -149,7 +153,46 @@ function BookmarkList({
         {items.map((item) => {
           const isEditingNote = editingNoteId === item.id;
           const isEditingRating = editingRatingId === item.id;
+          const isFolder = item.isFolder === 1;
 
+          // Folder card
+          if (isFolder) {
+            return (
+              <div
+                key={item.id}
+                className="relative card-brutal p-3 sm:p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                style={{ background: "var(--color-secondary)" }}
+                onClick={() => onNavigateToFolder(item.id, item.title)}
+              >
+                <div className="flex flex-col h-full items-center justify-center py-8">
+                  <div className="text-6xl mb-3">📁</div>
+                  <h3 className="font-black text-base sm:text-lg text-center">
+                    {item.title.toUpperCase()}
+                  </h3>
+                </div>
+
+                {/* Delete button */}
+                <div className="absolute top-2 right-2">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete(item.id);
+                    }}
+                    className="w-8 h-8 flex items-center justify-center hover:bg-red-100 border-2 border-black"
+                    style={{
+                      background: "var(--color-white)",
+                      color: "var(--color-danger)",
+                    }}
+                    aria-label="Delete folder"
+                  >
+                    ❌
+                  </button>
+                </div>
+              </div>
+            );
+          }
+
+          // Regular bookmark card
           return (
             <div
               key={item.id}
@@ -183,17 +226,19 @@ function BookmarkList({
                       role="menu"
                       aria-label="Bookmark actions"
                     >
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onCaptureScreenshot(item.id, item.url);
-                          setOpenMenuId(null);
-                        }}
-                        className="w-full px-3 py-2 text-left text-xs font-bold hover:bg-gray-100 border-b-2 border-black flex items-center gap-2"
-                        role="menuitem"
-                      >
-                        📷 SCREENSHOT
-                      </button>
+                      {item.url && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onCaptureScreenshot(item.id, item.url!);
+                            setOpenMenuId(null);
+                          }}
+                          className="w-full px-3 py-2 text-left text-xs font-bold hover:bg-gray-100 border-b-2 border-black flex items-center gap-2"
+                          role="menuitem"
+                        >
+                          📷 SCREENSHOT
+                        </button>
+                      )}
                       {item.screenshot && (
                         <button
                           onClick={(e) => {
@@ -239,24 +284,26 @@ function BookmarkList({
 
                 <h3
                   className="font-black text-sm sm:text-base mb-1 cursor-pointer hover:underline pr-8"
-                  onClick={() => handleOpenBookmark(item.url)}
+                  onClick={() => item.url && handleOpenBookmark(item.url)}
                   title={item.title}
                 >
                   {item.title.toUpperCase()}
                 </h3>
 
-                <a
-                  href={item.url}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    handleOpenBookmark(item.url);
-                  }}
-                  className="text-xs font-bold hover:underline block mb-2 wrap-break-word"
-                  title={item.url}
-                  style={{ color: "var(--color-primary)" }}
-                >
-                  {item.url}
-                </a>
+                {item.url && (
+                  <a
+                    href={item.url}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      handleOpenBookmark(item.url!);
+                    }}
+                    className="text-xs font-bold hover:underline block mb-2 wrap-break-word"
+                    title={item.url}
+                    style={{ color: "var(--color-primary)" }}
+                  >
+                    {item.url}
+                  </a>
+                )}
 
                 {/* Rating */}
                 <div className="mb-2">

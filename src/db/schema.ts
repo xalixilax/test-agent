@@ -6,11 +6,13 @@ export const bookmarks = pgTable("bookmarks", {
 	id: serial("id").primaryKey(),
 	chromeBookmarkId: text("chrome_bookmark_id").unique(),
 	title: text("title").notNull(),
-	url: text("url").notNull(),
+	url: text("url"),
 	note: text("note"),
 	rating: real("rating"), // 0-5 star rating
 	dateAdded: timestamp("date_added").defaultNow(),
 	screenshot: text("screenshot"), // base64 or URL to screenshot
+	parentId: integer("parent_id"),
+	isFolder: integer("is_folder").default(0).notNull(), // 0 = bookmark, 1 = folder
 });
 
 export const tags = pgTable("tags", {

@@ -2,30 +2,73 @@ import { useEffect, useState, useCallback } from "react";
 import BookmarkList from "./components/BookmarkList";
 import SearchBar from "./components/SearchBar";
 import AddBookmark from "./components/AddBookmark";
+import Breadcrumb from "./components/Breadcrumb";
 import { openFullScreen } from "./hooks/useExtension";
 import { useBookmarks } from "./hooks/useBookmarks";
 import { useUpdateBookmark, useSyncChromeBookmarks } from "./db/useBookmark";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { BreadcrumbItem, BookmarkWithTags } from "./types";
 
 const queryClient = new QueryClient();
 
-// Helper function to flatten Chrome bookmark tree
-const flattenChromeBookmarks = (
-  nodes: chrome.bookmarks.BookmarkTreeNode[]
-): Array<{ chromeBookmarkId: string; title: string; url: string }> => {
-  let result: Array<{ chromeBookmarkId: string; title: string; url: string }> =
-    [];
+// Helper function to convert Chrome bookmark tree to hierarchical structure
+const processChromeBookmarks = (
+  nodes: chrome.bookmarks.BookmarkTreeNode[],
+  chromeParentId?: string
+): Array<{
+  chromeBookmarkId: string;
+  chromeParentId?: string;
+  title: string;
+  url?: string;
+  isFolder: number;
+}> => {
+  let result: Array<{
+    chromeBookmarkId: string;
+    chromeParentId?: string;
+    title: string;
+    url?: string;
+    isFolder: number;
+  }> = [];
 
   for (const node of nodes) {
-    if (node.url) {
+    // Skip the root nodes (id "0"), but process their children
+    if (node.id === "0") {
+      if (node.children) {
+        result = result.concat(processChromeBookmarks(node.children));
+      }
+      continue;
+    }
+
+    // Skip Chrome's special folders (like "Bookmarks Bar" root container)
+    // but include their contents with proper parent relationships
+    const isSpecialRoot = !node.parentId || node.parentId === "0";
+
+    if (node.children) {
+      // This is a folder
+      if (!isSpecialRoot) {
+        result.push({
+          chromeBookmarkId: node.id,
+          chromeParentId: chromeParentId,
+          title: node.title || "Untitled Folder",
+          isFolder: 1,
+        });
+      }
+      // Process children with this node as parent
+      result = result.concat(
+        processChromeBookmarks(
+          node.children,
+          isSpecialRoot ? chromeParentId : node.id
+        )
+      );
+    } else if (node.url) {
+      // This is a bookmark
       result.push({
         chromeBookmarkId: node.id,
+        chromeParentId: chromeParentId,
         title: node.title || "Untitled",
         url: node.url,
+        isFolder: 0,
       });
-    }
-    if (node.children) {
-      result = result.concat(flattenChromeBookmarks(node.children));
     }
   }
 
@@ -33,8 +76,19 @@ const flattenChromeBookmarks = (
 };
 
 function BookmarkManager() {
-  const { bookmarks, loading, loadBookmarks, addBookmark, deleteBookmark } =
-    useBookmarks();
+  const [currentFolderId, setCurrentFolderId] = useState<number | null>(null);
+  const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbItem[]>([
+    { id: "root", title: "Bookmarks" },
+  ]);
+
+  const {
+    bookmarks,
+    allBookmarks,
+    loading,
+    loadBookmarks,
+    addBookmark,
+    deleteBookmark,
+  } = useBookmarks(currentFolderId);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [isSyncing, setIsSyncing] = useState(false);
@@ -42,10 +96,11 @@ function BookmarkManager() {
   const syncChromeBookmarksMutation = useSyncChromeBookmarks();
 
   const filteredBookmarks = searchTerm
-    ? bookmarks.filter(
+    ? allBookmarks.filter(
         (bookmark) =>
           bookmark.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          bookmark.url.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (bookmark.url &&
+            bookmark.url.toLowerCase().includes(searchTerm.toLowerCase())) ||
           bookmark.note?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           bookmark.tags?.some((tag) =>
             tag.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -53,14 +108,55 @@ function BookmarkManager() {
       )
     : bookmarks;
 
-  // Sync Chrome bookmarks on mount
+  // Navigate to a folder
+  const navigateToFolder = useCallback(
+    (folderId: number | null, folderTitle: string) => {
+      setCurrentFolderId(folderId);
+
+      if (folderId === null) {
+        // Navigate to root
+        setBreadcrumbs([{ id: "root", title: "Bookmarks" }]);
+      } else {
+        // Add to breadcrumbs
+        setBreadcrumbs((prev) => [
+          ...prev,
+          { id: folderId.toString(), title: folderTitle },
+        ]);
+      }
+    },
+    []
+  );
+
+  // Navigate via breadcrumb
+  const navigateToBreadcrumb = useCallback((id: string) => {
+    if (id === "root") {
+      setCurrentFolderId(null);
+      setBreadcrumbs([{ id: "root", title: "Bookmarks" }]);
+    } else {
+      const folderId = parseInt(id);
+      setCurrentFolderId(folderId);
+
+      // Trim breadcrumbs to this point
+      setBreadcrumbs((prev) => {
+        const index = prev.findIndex((b) => b.id === id);
+        return prev.slice(0, index + 1);
+      });
+    }
+  }, []);
+
+  // Load bookmarks immediately on mount
+  useEffect(() => {
+    loadBookmarks();
+  }, [loadBookmarks]);
+
+  // Sync Chrome bookmarks asynchronously in the background
   useEffect(() => {
     const syncBookmarks = async () => {
       if (typeof chrome !== "undefined" && chrome.bookmarks) {
         try {
           setIsSyncing(true);
           const tree = await chrome.bookmarks.getTree();
-          const flatBookmarks = flattenChromeBookmarks(tree);
+          const hierarchicalBookmarks = processChromeBookmarks(tree);
 
           // Get screenshots from Chrome storage
           const result = await chrome.storage.local.get("screenshots");
@@ -74,17 +170,21 @@ function BookmarkManager() {
             >) || {};
 
           // Add screenshot data to bookmarks
-          const bookmarksWithScreenshots = flatBookmarks.map((bookmark) => ({
-            ...bookmark,
-            screenshot:
-              screenshots[bookmark.chromeBookmarkId]?.dataUrl || undefined,
-          }));
+          const bookmarksWithScreenshots = hierarchicalBookmarks.map(
+            (bookmark) => ({
+              ...bookmark,
+              screenshot:
+                screenshots[bookmark.chromeBookmarkId]?.dataUrl || undefined,
+            })
+          );
 
           await syncChromeBookmarksMutation.mutateAsync({
             bookmarks: bookmarksWithScreenshots,
           });
 
-          console.log(`Synced ${flatBookmarks.length} Chrome bookmarks`);
+          console.log(
+            `Synced ${hierarchicalBookmarks.length} Chrome bookmarks`
+          );
         } catch (error) {
           console.error("Failed to sync Chrome bookmarks:", error);
         } finally {
@@ -93,16 +193,29 @@ function BookmarkManager() {
       }
     };
 
+    // Run sync on mount
     syncBookmarks();
+
+    // Listen for bookmark changes from background script
+    if (typeof chrome !== "undefined" && chrome.runtime) {
+      const handleMessage = (message: any) => {
+        if (message.action === "bookmarkChanged") {
+          console.log("Bookmark changed, re-syncing...");
+          syncBookmarks();
+        }
+      };
+
+      chrome.runtime.onMessage.addListener(handleMessage);
+
+      return () => {
+        chrome.runtime.onMessage.removeListener(handleMessage);
+      };
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run once on mount
 
-  useEffect(() => {
-    loadBookmarks();
-  }, [loadBookmarks]);
-
-  const handleAddBookmark = (title: string, url: string) => {
-    addBookmark(title, url);
+  const handleAddBookmark = (title: string, url: string, isFolder: boolean) => {
+    addBookmark(title, url, currentFolderId, isFolder ? 1 : 0);
   };
 
   const handleDeleteBookmark = (id: number) => {
@@ -172,15 +285,13 @@ function BookmarkManager() {
     [bookmarks, updateBookmarkMutation]
   );
 
-  if (loading || isSyncing) {
+  if (loading) {
     return (
       <div
         className="flex items-center justify-center h-screen"
         style={{ background: "var(--color-bg)" }}
       >
-        <div className="text-2xl font-bold">
-          {isSyncing ? "SYNCING BOOKMARKS..." : "LOADING..."}
-        </div>
+        <div className="text-2xl font-bold">LOADING...</div>
       </div>
     );
   }
@@ -203,6 +314,9 @@ function BookmarkManager() {
               </h1>
               <p className="hidden md:block text-sm text-white font-bold mt-1">
                 YOUR LINK COLLECTION
+                {isSyncing && (
+                  <span className="ml-2 text-xs opacity-75">(SYNCING...)</span>
+                )}
               </p>
             </div>
             <button
@@ -216,13 +330,19 @@ function BookmarkManager() {
         </div>
 
         <div className="p-2 sm:p-4 md:p-6 space-y-3 sm:space-y-4">
-          <AddBookmark onAdd={handleAddBookmark} />
+          <Breadcrumb path={breadcrumbs} onNavigate={navigateToBreadcrumb} />
+          <AddBookmark
+            onAdd={handleAddBookmark}
+            currentFolderId={currentFolderId}
+          />
           <SearchBar searchTerm={searchTerm} onSearch={setSearchTerm} />
           <BookmarkList
             items={filteredBookmarks}
             onDelete={handleDeleteBookmark}
             onCaptureScreenshot={captureScreenshot}
             onDeleteScreenshot={deleteScreenshot}
+            onNavigateToFolder={navigateToFolder}
+            isSearching={!!searchTerm}
           />
         </div>
       </div>

@@ -1,4 +1,4 @@
-import { eq, and } from "drizzle-orm";
+import { eq, and, isNull, desc } from "drizzle-orm";
 import { z } from "zod";
 import { type Bookmark, bookmarks, type Tag, tags, type BookmarkTag, bookmarkTags } from "../db/schema";
 import { createRouter, mutation, query } from "../lib/worker/router";
@@ -8,10 +8,12 @@ import { createRouter, mutation, query } from "../lib/worker/router";
 // Bookmark schemas
 const addBookmarkSchema = z.object({
 	title: z.string().min(1, "Title is required"),
-	url: z.string().url("Valid URL is required"),
+	url: z.string().url("Valid URL is required").optional(),
 	note: z.string().optional(),
 	rating: z.number().min(0).max(5).optional(),
 	screenshot: z.string().optional(),
+	parentId: z.number().int().nullable().optional(),
+	isFolder: z.number().int().optional(), // 0 = bookmark, 1 = folder
 });
 
 const updateBookmarkSchema = z.object({
@@ -56,9 +58,11 @@ const deleteBookmarkTagSchema = z.object({
 const syncChromeBookmarksSchema = z.object({
 	bookmarks: z.array(z.object({
 		chromeBookmarkId: z.string(),
+		chromeParentId: z.string().optional(),
 		title: z.string(),
-		url: z.string(),
+		url: z.string().optional(),
 		screenshot: z.string().optional(),
+		isFolder: z.number().int(),
 	})),
 });
 
@@ -75,32 +79,69 @@ export const createAppRouter = (context: {
 			},
 		}),
 
-		getBookmarksWithTags: query({
-			handler: async () => {
-				// Get all bookmarks
-				const allBookmarks = await context.db.select().from(bookmarks).orderBy(bookmarks.id);
-				
-				// Get all bookmark-tag relationships
-				const allBookmarkTags = await context.db
-					.select({
-						bookmarkId: bookmarkTags.bookmarkId,
-						tagId: bookmarkTags.tagId,
-						tagName: tags.name,
-					})
-					.from(bookmarkTags)
-					.leftJoin(tags, eq(bookmarkTags.tagId, tags.id));
+	getBookmarksWithTags: query({
+		handler: async () => {
+			// Get all bookmarks for search purposes
+			const allBookmarks = await context.db.select().from(bookmarks).orderBy(bookmarks.id);
+			
+			// Get all bookmark-tag relationships
+			const allBookmarkTags = await context.db
+				.select({
+					bookmarkId: bookmarkTags.bookmarkId,
+					tagId: bookmarkTags.tagId,
+					tagName: tags.name,
+				})
+				.from(bookmarkTags)
+				.leftJoin(tags, eq(bookmarkTags.tagId, tags.id));
 
-				// Combine bookmarks with their tags
-				return allBookmarks.map((bookmark: Bookmark) => ({
-					...bookmark,
-					tags: allBookmarkTags
-						.filter((bt: any) => bt.bookmarkId === bookmark.id)
-						.map((bt: any) => ({ id: bt.tagId, name: bt.tagName || '' })),
-				}));
-			},
+			// Combine bookmarks with their tags
+			return allBookmarks.map((bookmark: Bookmark) => ({
+				...bookmark,
+				tags: allBookmarkTags
+					.filter((bt: any) => bt.bookmarkId === bookmark.id)
+					.map((bt: any) => ({ id: bt.tagId, name: bt.tagName || '' })),
+			}));
+		},
+	}),
+
+	getBookmarksByParent: query({
+		input: z.object({
+			parentId: z.number().int().nullable(),
 		}),
+		handler: async (input) => {
+			// Get bookmarks for a specific folder (or root if parentId is null)
+			let query = context.db.select().from(bookmarks);
+			
+			if (input.parentId === null) {
+				// Get root level items (where parentId is null)
+				query = query.where(isNull(bookmarks.parentId)) as any;
+			} else {
+				// Get items in specific folder
+				query = query.where(eq(bookmarks.parentId, input.parentId)) as any;
+			}
+			
+			const folderBookmarks = await query.orderBy(desc(bookmarks.isFolder), bookmarks.id);
+			
+			// Get all bookmark-tag relationships for these bookmarks
+			const bookmarkIds = folderBookmarks.map((b: Bookmark) => b.id);
+			const allBookmarkTags = bookmarkIds.length > 0 ? await context.db
+				.select({
+					bookmarkId: bookmarkTags.bookmarkId,
+					tagId: bookmarkTags.tagId,
+					tagName: tags.name,
+				})
+				.from(bookmarkTags)
+				.leftJoin(tags, eq(bookmarkTags.tagId, tags.id)) : [];
 
-		addBookmark: mutation({
+			// Combine bookmarks with their tags
+			return folderBookmarks.map((bookmark: Bookmark) => ({
+				...bookmark,
+				tags: allBookmarkTags
+					.filter((bt: any) => bt.bookmarkId === bookmark.id)
+					.map((bt: any) => ({ id: bt.tagId, name: bt.tagName || '' })),
+			}));
+		},
+	}),		addBookmark: mutation({
 			input: addBookmarkSchema,
 			handler: async (input): Promise<Bookmark> => {
 				const [newBookmark] = await context.db
@@ -217,6 +258,10 @@ export const createAppRouter = (context: {
 				let synced = 0;
 				let updated = 0;
 
+				// Create a map of Chrome bookmark IDs to database IDs
+				const chromeIdToDbId = new Map<string, number>();
+
+				// First pass: Create/update all items without setting parentId
 				for (const chromeBookmark of input.bookmarks) {
 					// Check if bookmark already exists by Chrome bookmark ID
 					const existing = await context.db
@@ -226,11 +271,12 @@ export const createAppRouter = (context: {
 						.limit(1);
 
 					if (existing.length > 0) {
-						// Update existing bookmark if title, URL, or screenshot changed
+						// Update existing bookmark
 						const existingBookmark = existing[0];
 						const hasChanges = 
 							existingBookmark.title !== chromeBookmark.title || 
 							existingBookmark.url !== chromeBookmark.url ||
+							existingBookmark.isFolder !== chromeBookmark.isFolder ||
 							(chromeBookmark.screenshot && existingBookmark.screenshot !== chromeBookmark.screenshot);
 						
 						if (hasChanges) {
@@ -238,23 +284,55 @@ export const createAppRouter = (context: {
 								.update(bookmarks)
 								.set({
 									title: chromeBookmark.title,
-									url: chromeBookmark.url,
+									url: chromeBookmark.url || null,
+									isFolder: chromeBookmark.isFolder,
 									screenshot: chromeBookmark.screenshot || existingBookmark.screenshot,
 								})
 								.where(eq(bookmarks.chromeBookmarkId, chromeBookmark.chromeBookmarkId));
 							updated++;
 						}
+						
+						chromeIdToDbId.set(chromeBookmark.chromeBookmarkId, existingBookmark.id);
 					} else {
-						// Insert new bookmark
-						await context.db
+						// Insert new bookmark (parentId will be set in second pass)
+						const [newBookmark] = await context.db
 							.insert(bookmarks)
 							.values({
 								chromeBookmarkId: chromeBookmark.chromeBookmarkId,
 								title: chromeBookmark.title,
-								url: chromeBookmark.url,
+								url: chromeBookmark.url || null,
+								isFolder: chromeBookmark.isFolder,
 								screenshot: chromeBookmark.screenshot,
-							});
+								parentId: null, // Will be updated in second pass
+							})
+							.returning();
+						
+						chromeIdToDbId.set(chromeBookmark.chromeBookmarkId, newBookmark.id);
 						synced++;
+					}
+				}
+
+				// Second pass: Update parentId relationships
+				for (const chromeBookmark of input.bookmarks) {
+					if (chromeBookmark.chromeParentId) {
+						const dbId = chromeIdToDbId.get(chromeBookmark.chromeBookmarkId);
+						const parentDbId = chromeIdToDbId.get(chromeBookmark.chromeParentId);
+						
+						if (dbId && parentDbId) {
+							await context.db
+								.update(bookmarks)
+								.set({ parentId: parentDbId })
+								.where(eq(bookmarks.id, dbId));
+						}
+					} else {
+						// No parent = root level
+						const dbId = chromeIdToDbId.get(chromeBookmark.chromeBookmarkId);
+						if (dbId) {
+							await context.db
+								.update(bookmarks)
+								.set({ parentId: null })
+								.where(eq(bookmarks.id, dbId));
+						}
 					}
 				}
 

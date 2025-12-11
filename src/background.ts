@@ -248,3 +248,32 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     console.log('Cleared visited URLs cache');
   }
 });
+
+// Listen for Chrome bookmark events to trigger re-sync
+chrome.bookmarks.onCreated.addListener(() => {
+  console.log('Bookmark created, triggering sync...');
+  chrome.runtime.sendMessage({ action: 'bookmarkChanged' }).catch(() => {
+    // Ignore errors if popup isn't open
+  });
+});
+
+chrome.bookmarks.onRemoved.addListener(() => {
+  console.log('Bookmark removed, triggering sync...');
+  chrome.runtime.sendMessage({ action: 'bookmarkChanged' }).catch(() => {
+    // Ignore errors if popup isn't open
+  });
+});
+
+chrome.bookmarks.onChanged.addListener(() => {
+  console.log('Bookmark changed, triggering sync...');
+  chrome.runtime.sendMessage({ action: 'bookmarkChanged' }).catch(() => {
+    // Ignore errors if popup isn't open
+  });
+});
+
+chrome.bookmarks.onMoved.addListener(() => {
+  console.log('Bookmark moved, triggering sync...');
+  chrome.runtime.sendMessage({ action: 'bookmarkChanged' }).catch(() => {
+    // Ignore errors if popup isn't open
+  });
+});
