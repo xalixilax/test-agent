@@ -1,5 +1,4 @@
 import { PGlite } from "@electric-sql/pglite";
-import { OpfsAhpFS } from "@electric-sql/pglite/opfs-ahp";
 import { drizzle } from "drizzle-orm/pglite";
 import migrationsData from "./migrations.json";
 
@@ -15,8 +14,8 @@ let client: PGlite;
 
 async function initDb() {
 	console.log("[DB] Starting database initialization...");
-	const fs = new OpfsAhpFS("my-pgdata");
-	client = new PGlite({ fs });
+	// Use indexedDB instead of OPFS-AHP because service workers don't support createSyncAccessHandle
+	client = new PGlite("idb://my-pgdata");
 	await client.waitReady;
 	console.log("[DB] PGlite client ready");
 

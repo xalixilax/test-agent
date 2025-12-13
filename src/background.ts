@@ -1,4 +1,9 @@
-// Background service worker for automatic screenshot capture
+// Background service worker for automatic screenshot capture and database management
+import { initDb, db } from './db/db';
+import { createAppRouter } from './routers/appRouters';
+import { createWorkerHandler, type WorkerRequest, type WorkerResponse } from './lib/worker/router';
+import { log, error as logError } from './lib/worker/utils';
+
 interface ScreenshotData {
   [bookmarkId: string]: {
     dataUrl: string;
@@ -10,6 +15,27 @@ interface ScreenshotData {
 interface VisitedUrlsData {
   urls: string[];
 }
+
+// Database initialization
+let isDbReady = false;
+let handleRequest: ReturnType<typeof createWorkerHandler> | null = null;
+
+(async () => {
+  try {
+    console.log('[Background] Initializing database...');
+    await initDb();
+    console.log('[Background] Database initialized successfully');
+    
+    const router = createAppRouter({ db, log, error: logError });
+    handleRequest = createWorkerHandler(router);
+    
+    isDbReady = true;
+    console.log('[Background] Database ready');
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    console.error('[Background] Init failed:', errorMsg);
+  }
+})();
 
 // Helper function to get visited URLs from storage
 async function getVisitedUrls(): Promise<Set<string>> {
@@ -82,8 +108,45 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   }
 });
 
-// Listen for messages from popup to manually capture screenshots
+// Listen for messages from popup to manually capture screenshots and handle database operations
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  // Handle database requests
+  if (request.type === 'worker-request') {
+    const workerRequest = request as WorkerRequest;
+    
+    (async () => {
+      if (!isDbReady || !handleRequest) {
+        sendResponse({
+          type: 'worker-response',
+          id: workerRequest.id,
+          requestId: workerRequest.requestId || workerRequest.id,
+          success: false,
+          error: 'Database not ready'
+        } as WorkerResponse);
+        return;
+      }
+      
+      try {
+        const response = await handleRequest(workerRequest);
+        sendResponse({
+          ...response,
+          type: 'worker-response',
+          requestId: workerRequest.requestId || workerRequest.id
+        });
+      } catch (err) {
+        sendResponse({
+          type: 'worker-response',
+          id: workerRequest.id,
+          requestId: workerRequest.requestId || workerRequest.id,
+          success: false,
+          error: err instanceof Error ? err.message : String(err)
+        } as WorkerResponse);
+      }
+    })();
+    
+    return true; // Keep message channel open for async response
+  }
+  
   if (request.action === 'getCurrentTab') {
     // Get current active tab and check if it's bookmarked
     (async () => {

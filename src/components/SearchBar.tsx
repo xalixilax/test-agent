@@ -1,12 +1,14 @@
 interface SearchBarProps {
   searchTerm: string;
   onSearch: (term: string) => void;
+  compact?: boolean;
 }
 
-function SearchBar({ searchTerm, onSearch }: SearchBarProps) {
+function SearchBar({ searchTerm, onSearch, compact = false }: SearchBarProps) {
   return (
     <div className="relative">
       <input
+        autoFocus
         type="text"
         placeholder="SEARCH..."
         value={searchTerm}
@@ -28,7 +30,7 @@ function SearchBar({ searchTerm, onSearch }: SearchBarProps) {
       </svg>
       {searchTerm && (
         <button
-          onClick={() => onSearch('')}
+          onClick={() => onSearch("")}
           className="absolute right-3 top-1/2 transform -translate-y-1/2 w-6 h-6 flex items-center justify-center font-black text-lg hover:scale-110 transition-transform"
           title="Clear search"
         >

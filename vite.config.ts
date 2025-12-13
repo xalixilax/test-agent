@@ -10,6 +10,7 @@ export default defineConfig({
 		rollupOptions: {
 			input: {
 				index: resolve(__dirname, "index.html"),
+				popup: resolve(__dirname, "popup.html"),
 				background: resolve(__dirname, "src/background.ts"),
 				worker: resolve(__dirname, "src/worker.ts"),
 			},
@@ -23,10 +24,11 @@ export default defineConfig({
 				},
 				chunkFileNames: "assets/[name]-[hash].js",
 				assetFileNames: (assetInfo) => {
-					if (assetInfo.name === "index.html") {
-						return "[name].[ext]";
+					const name = assetInfo.name || '';
+					if (name === "index.html" || name === "popup.html" || name.endsWith(".html")) {
+						return "[name][extname]";
 					}
-					return "assets/[name]-[hash].[ext]";
+					return "assets/[name]-[hash][extname]";
 				},
 			},
 		},

@@ -3,7 +3,6 @@ import BookmarkList from "./components/BookmarkList";
 import SearchBar from "./components/SearchBar";
 import AddBookmark from "./components/AddBookmark";
 import Breadcrumb from "./components/Breadcrumb";
-import { openFullScreen } from "./hooks/useExtension";
 import { useBookmarks } from "./hooks/useBookmarks";
 import { useUpdateBookmark, useSyncChromeBookmarks } from "./db/useBookmark";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -319,13 +318,6 @@ function BookmarkManager() {
                 )}
               </p>
             </div>
-            <button
-              onClick={openFullScreen}
-              className="btn-brutal bg-white px-3 py-2 text-xs sm:text-sm font-black"
-              title="Open in full screen"
-            >
-              EXPAND
-            </button>
           </div>
         </div>
 

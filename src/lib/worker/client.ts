@@ -12,7 +12,6 @@ type EventListener = (data: unknown) => void;
 type ErrorListener = (error: Error) => void;
 
 export class WorkerClient<TRouter extends Record<string, Procedure<any, any>>> {
-	private worker: Worker;
 	private requestId = 0;
 	private pendingRequests = new Map<
 		string,
@@ -25,13 +24,11 @@ export class WorkerClient<TRouter extends Record<string, Procedure<any, any>>> {
 	private errorListeners = new Set<ErrorListener>();
 
 	constructor(workerUrl: string) {
-		this.worker = new Worker(workerUrl, { type: "module" });
-		this.worker.onmessage = this.handleMessage.bind(this);
-		this.worker.onerror = this.handleError.bind(this);
+		// No longer using Web Worker - using background script instead
+		// workerUrl parameter kept for API compatibility
 	}
 
-	private handleMessage(event: MessageEvent<WorkerResponse>) {
-		const response = event.data;
+	private handleMessage(response: WorkerResponse) {
 		const pending = this.pendingRequests.get(response.id);
 
 		if (!pending) return;
@@ -47,8 +44,8 @@ export class WorkerClient<TRouter extends Record<string, Procedure<any, any>>> {
 		}
 	}
 
-	private handleError(event: ErrorEvent) {
-		const error = new Error(`Worker error: ${event.message}`);
+	private handleError(errorMessage: string) {
+		const error = new Error(`Background script error: ${errorMessage}`);
 		this.notifyError(error);
 	}
 
@@ -74,14 +71,26 @@ export class WorkerClient<TRouter extends Record<string, Procedure<any, any>>> {
 		const id = `${++this.requestId}`;
 
 		const request: WorkerRequest = {
+			type: 'worker-request',
 			id,
+			requestId: id,
 			route: route as string,
 			input,
 		};
 
 		return new Promise((resolve, reject) => {
 			this.pendingRequests.set(id, { resolve, reject });
-			this.worker.postMessage(request);
+			
+			// Use chrome.runtime.sendMessage instead of worker.postMessage
+			chrome.runtime.sendMessage(request, (response: WorkerResponse) => {
+				if (chrome.runtime.lastError) {
+					reject(new Error(chrome.runtime.lastError.message));
+					this.pendingRequests.delete(id);
+					return;
+				}
+				
+				this.handleMessage(response);
+			});
 		});
 	}
 
@@ -95,10 +104,9 @@ export class WorkerClient<TRouter extends Record<string, Procedure<any, any>>> {
 	}
 
 	/**
-	 * Terminate the worker
+	 * Cleanup the client (no worker to terminate anymore)
 	 */
 	terminate() {
-		this.worker.terminate();
 		this.pendingRequests.clear();
 		this.eventListeners.clear();
 		this.errorListeners.clear();

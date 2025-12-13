@@ -41,13 +41,17 @@ export interface WorkerRequest<
 	TRoute extends string = string,
 	TInput = unknown,
 > {
+	type?: 'worker-request';
 	id: string;
+	requestId?: string;
 	route: TRoute;
 	input: TInput;
 }
 
 export interface WorkerResponse<TOutput = unknown> {
+	type?: 'worker-response';
 	id: string;
+	requestId?: string;
 	success: boolean;
 	data?: TOutput;
 	error?: string;
