@@ -3,6 +3,7 @@ import type { BookmarkWithTags } from "../types";
 import { useUpdateBookmark } from "../db/useBookmark";
 import { useTags, useAddTag } from "../db/useTag";
 import { useAddBookmarkTag, useDeleteBookmarkTag } from "../db/useBookmarkTag";
+import { Button } from "./ui/button";
 
 interface BookmarkListProps {
   items: BookmarkWithTags[];
@@ -104,7 +105,7 @@ function BookmarkList({
     return (
       <div className="flex items-center gap-1">
         {[1, 2, 3, 4, 5].map((star) => (
-          <button
+          <Button
             key={star}
             onClick={(e) => {
               e.stopPropagation();
@@ -114,23 +115,26 @@ function BookmarkList({
                 handleUpdateRating(bookmarkId, star);
               }
             }}
-            className="text-lg hover:scale-110 transition-transform"
+            className="text-lg hover:scale-110 p-0"
+            variant="ghost"
+            size="icon"
             title={`${star} star${star > 1 ? "s" : ""}`}
           >
             {star <= currentRating ? "⭐" : "☆"}
-          </button>
+          </Button>
         ))}
         {isEditing && (
-          <button
+          <Button
             onClick={(e) => {
               e.stopPropagation();
               setEditingRatingId(null);
             }}
-            className="ml-2 text-xs font-bold px-2 py-1 border-2 border-black"
-            style={{ background: "var(--color-white)" }}
+            className="ml-2"
+            variant="default"
+            size="sm"
           >
             CANCEL
-          </button>
+          </Button>
         )}
       </div>
     );
@@ -173,20 +177,17 @@ function BookmarkList({
 
                 {/* Delete button */}
                 <div className="absolute top-2 right-2">
-                  <button
+                  <Button
                     onClick={(e) => {
                       e.stopPropagation();
                       onDelete(item.id);
                     }}
-                    className="w-8 h-8 flex items-center justify-center hover:bg-red-100 border-2 border-black"
-                    style={{
-                      background: "var(--color-white)",
-                      color: "var(--color-danger)",
-                    }}
+                    variant="danger"
+                    size="icon"
                     aria-label="Delete folder"
                   >
                     ❌
-                  </button>
+                  </Button>
                 </div>
               </div>
             );
@@ -203,13 +204,14 @@ function BookmarkList({
               <div className="flex flex-col h-full">
                 {/* Kebab menu */}
                 <div className="absolute top-2 right-2">
-                  <button
+                  <Button
                     onClick={(e) => {
                       e.stopPropagation();
                       setOpenMenuId(openMenuId === item.id ? null : item.id);
                     }}
-                    className="w-8 h-8 flex flex-col items-center justify-center gap-1 hover:bg-gray-100 border-2 border-black"
-                    style={{ background: "var(--color-white)" }}
+                    className="flex-col gap-1"
+                    variant="default"
+                    size="icon"
                     aria-label="Bookmark actions menu"
                     aria-expanded={openMenuId === item.id}
                     aria-haspopup="true"
@@ -217,7 +219,7 @@ function BookmarkList({
                     <div className="w-1 h-1 bg-black rounded-full"></div>
                     <div className="w-1 h-1 bg-black rounded-full"></div>
                     <div className="w-1 h-1 bg-black rounded-full"></div>
-                  </button>
+                  </Button>
 
                   {openMenuId === item.id && (
                     <div
@@ -227,43 +229,49 @@ function BookmarkList({
                       aria-label="Bookmark actions"
                     >
                       {item.url && (
-                        <button
+                        <Button
                           onClick={(e) => {
                             e.stopPropagation();
                             onCaptureScreenshot(item.id, item.url!);
                             setOpenMenuId(null);
                           }}
-                          className="w-full px-3 py-2 text-left text-xs font-bold hover:bg-gray-100 border-b-2 border-black flex items-center gap-2"
+                          className="w-full justify-start gap-2 border-b-2 rounded-none"
+                          variant="ghost"
+                          size="sm"
                           role="menuitem"
                         >
                           📷 SCREENSHOT
-                        </button>
+                        </Button>
                       )}
                       {item.screenshot && (
-                        <button
+                        <Button
                           onClick={(e) => {
                             e.stopPropagation();
                             onDeleteScreenshot(item.id);
                             setOpenMenuId(null);
                           }}
-                          className="w-full px-3 py-2 text-left text-xs font-bold hover:bg-gray-100 border-b-2 border-black flex items-center gap-2"
+                          className="w-full justify-start gap-2 border-b-2 rounded-none"
+                          variant="ghost"
+                          size="sm"
                           role="menuitem"
                         >
                           🗑️ DEL SCREENSHOT
-                        </button>
+                        </Button>
                       )}
-                      <button
+                      <Button
                         onClick={(e) => {
                           e.stopPropagation();
                           onDelete(item.id);
                           setOpenMenuId(null);
                         }}
-                        className="w-full px-3 py-2 text-left text-xs font-bold hover:bg-red-100 flex items-center gap-2"
+                        className="w-full justify-start gap-2 hover:bg-red-100 rounded-none"
                         style={{ color: "var(--color-danger)" }}
+                        variant="ghost"
+                        size="sm"
                         role="menuitem"
                       >
                         ❌ DELETE
-                      </button>
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -320,15 +328,17 @@ function BookmarkList({
                         style={{ background: "var(--color-secondary)" }}
                       >
                         {tag.name}
-                        <button
+                        <Button
                           onClick={(e) => {
                             e.stopPropagation();
                             handleRemoveTag(item.id, tag.id);
                           }}
-                          className="hover:text-red-600"
+                          className="hover:text-red-600 w-4 h-4 p-0 text-sm"
+                          variant="ghost"
+                          size="icon"
                         >
                           ×
-                        </button>
+                        </Button>
                       </span>
                     ))}
                   </div>
@@ -350,17 +360,17 @@ function BookmarkList({
                           </option>
                         ))}
                     </select>
-                    <button
+                    <Button
                       onClick={(e) => {
                         e.stopPropagation();
                         handleAddTag(item.id);
                       }}
                       disabled={!selectedTag}
-                      className="px-2 py-1 text-xs font-bold border-2 border-black disabled:opacity-50"
-                      style={{ background: "var(--color-white)" }}
+                      variant="default"
+                      size="sm"
                     >
                       +
-                    </button>
+                    </Button>
                   </div>
                   <div className="flex gap-1 mt-1">
                     <input
@@ -376,17 +386,17 @@ function BookmarkList({
                         }
                       }}
                     />
-                    <button
+                    <Button
                       onClick={(e) => {
                         e.stopPropagation();
                         handleCreateAndAddTag(item.id);
                       }}
                       disabled={!newTagName.trim()}
-                      className="px-2 py-1 text-xs font-bold border-2 border-black disabled:opacity-50"
-                      style={{ background: "var(--color-white)" }}
+                      variant="default"
+                      size="sm"
                     >
                       CREATE
-                    </button>
+                    </Button>
                   </div>
                 </div>
 
@@ -402,27 +412,29 @@ function BookmarkList({
                         onClick={(e) => e.stopPropagation()}
                       />
                       <div className="flex gap-1 mt-1">
-                        <button
+                        <Button
                           onClick={(e) => {
                             e.stopPropagation();
                             handleSaveNote(item.id);
                           }}
-                          className="flex-1 px-2 py-1 text-xs font-bold border-2 border-black"
-                          style={{ background: "var(--color-success)" }}
+                          className="flex-1"
+                          variant="success"
+                          size="sm"
                         >
                           SAVE
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           onClick={(e) => {
                             e.stopPropagation();
                             setEditingNoteId(null);
                             setNoteText("");
                           }}
-                          className="flex-1 px-2 py-1 text-xs font-bold border-2 border-black"
-                          style={{ background: "var(--color-white)" }}
+                          className="flex-1"
+                          variant="default"
+                          size="sm"
                         >
                           CANCEL
-                        </button>
+                        </Button>
                       </div>
                     </div>
                   ) : (
@@ -471,13 +483,13 @@ function BookmarkList({
               className="max-w-full max-h-full border-4 border-white"
               onClick={(e) => e.stopPropagation()}
             />
-            <button
-              className="absolute -top-12 right-0 btn-brutal px-4 py-2 font-black"
-              style={{ background: "var(--color-white)" }}
+            <Button
+              className="absolute -top-12 right-0 font-black"
+              variant="default"
               onClick={() => setSelectedScreenshot(null)}
             >
               CLOSE
-            </button>
+            </Button>
           </div>
         </div>
       )}

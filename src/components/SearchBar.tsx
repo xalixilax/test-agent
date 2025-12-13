@@ -1,3 +1,5 @@
+import { Button } from "./ui/button";
+
 interface SearchBarProps {
   searchTerm: string;
   onSearch: (term: string) => void;
@@ -29,13 +31,15 @@ function SearchBar({ searchTerm, onSearch, compact = false }: SearchBarProps) {
         />
       </svg>
       {searchTerm && (
-        <button
+        <Button
           onClick={() => onSearch("")}
-          className="absolute right-3 top-1/2 transform -translate-y-1/2 w-6 h-6 flex items-center justify-center font-black text-lg hover:scale-110 transition-transform"
+          className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 font-black text-lg hover:scale-110"
+          variant="ghost"
+          size="icon"
           title="Clear search"
         >
           ×
-        </button>
+        </Button>
       )}
     </div>
   );

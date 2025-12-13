@@ -3,6 +3,7 @@ import SearchBar from "./components/SearchBar";
 import { openFullScreen } from "./hooks/useExtension";
 import { useBookmarksWithTags } from "./db/useBookmark";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Button } from "./components/ui/button";
 
 const queryClient = new QueryClient();
 
@@ -45,9 +46,11 @@ function PopupContent() {
               compact
             />
           </div>
-          <button
+          <Button
             onClick={openFullScreen}
-            className="btn-brutal bg-white px-3 py-2 text-sm font-black flex items-center gap-1 whitespace-nowrap"
+            className="font-black gap-1"
+            variant="default"
+            size="default"
             title="Open full view"
           >
             <svg
@@ -63,7 +66,7 @@ function PopupContent() {
                 d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"
               />
             </svg>
-          </button>
+          </Button>
         </div>
 
         {searchTerm && (
@@ -74,36 +77,38 @@ function PopupContent() {
               </div>
             ) : (
               filteredBookmarks.slice(0, 10).map((bookmark) => (
-                <button
+                <Button
                   key={bookmark.id}
                   onClick={() =>
                     bookmark.url && handleOpenBookmark(bookmark.url)
                   }
-                  className="w-full text-left p-2 border-2 border-black hover:translate-x-0.5 hover:translate-y-0.5 transition-transform"
-                  style={{ background: "var(--color-white)" }}
+                  className="w-full text-left justify-start p-2 h-auto hover:translate-x-0.5 hover:translate-y-0.5 flex-col items-start"
+                  variant="default"
                 >
-                  <div className="font-bold text-sm truncate">
-                    {bookmark.title}
+                  <div className="w-full">
+                    <div className="font-bold text-sm truncate">
+                      {bookmark.title}
+                    </div>
+                    {bookmark.url && (
+                      <div className="text-xs text-gray-600 truncate mt-0.5">
+                        {new URL(bookmark.url).hostname}
+                      </div>
+                    )}
+                    {bookmark.tags && bookmark.tags.length > 0 && (
+                      <div className="flex gap-1 mt-1 flex-wrap">
+                        {bookmark.tags.map((tag) => (
+                          <span
+                            key={tag.id}
+                            className="text-xs px-1 border border-black"
+                            style={{ background: tag.color || "#fff" }}
+                          >
+                            {tag.name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  {bookmark.url && (
-                    <div className="text-xs text-gray-600 truncate mt-0.5">
-                      {new URL(bookmark.url).hostname}
-                    </div>
-                  )}
-                  {bookmark.tags && bookmark.tags.length > 0 && (
-                    <div className="flex gap-1 mt-1 flex-wrap">
-                      {bookmark.tags.map((tag) => (
-                        <span
-                          key={tag.id}
-                          className="text-xs px-1 border border-black"
-                          style={{ background: tag.color || "#fff" }}
-                        >
-                          {tag.name}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </button>
+                </Button>
               ))
             )}
           </div>

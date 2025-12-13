@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Button } from "./ui/button";
 
 interface AddBookmarkProps {
   onAdd: (title: string, url: string, isFolder: boolean) => void;
@@ -25,26 +26,28 @@ function AddBookmark({ onAdd, currentFolderId }: AddBookmarkProps) {
   if (!isExpanded) {
     return (
       <div className="flex gap-2">
-        <button
+        <Button
           onClick={() => {
             setIsExpanded(true);
             setIsFolder(false);
           }}
-          className="flex-1 py-3 px-4 btn-brutal font-black text-sm sm:text-base"
-          style={{ background: "var(--color-secondary)" }}
+          className="flex-1 font-black"
+          variant="secondary"
+          size="lg"
         >
           + ADD BOOKMARK
-        </button>
-        <button
+        </Button>
+        <Button
           onClick={() => {
             setIsExpanded(true);
             setIsFolder(true);
           }}
-          className="flex-1 py-3 px-4 btn-brutal font-black text-sm sm:text-base"
-          style={{ background: "var(--color-secondary)" }}
+          className="flex-1 font-black"
+          variant="secondary"
+          size="lg"
         >
           📁 ADD FOLDER
-        </button>
+        </Button>
       </div>
     );
   }
@@ -57,24 +60,22 @@ function AddBookmark({ onAdd, currentFolderId }: AddBookmarkProps) {
     >
       <div className="flex items-center gap-2 mb-2">
         <span className="text-sm font-bold">Creating:</span>
-        <button
+        <Button
           type="button"
           onClick={() => setIsFolder(false)}
-          className={`px-3 py-1 text-xs font-bold border-2 border-black ${
-            !isFolder ? "bg-black text-white" : "bg-white"
-          }`}
+          variant={!isFolder ? "selected" : "default"}
+          size="sm"
         >
           BOOKMARK
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
           onClick={() => setIsFolder(true)}
-          className={`px-3 py-1 text-xs font-bold border-2 border-black ${
-            isFolder ? "bg-black text-white" : "bg-white"
-          }`}
+          variant={isFolder ? "selected" : "default"}
+          size="sm"
         >
           FOLDER
-        </button>
+        </Button>
       </div>
 
       <div>
@@ -102,14 +103,15 @@ function AddBookmark({ onAdd, currentFolderId }: AddBookmarkProps) {
       )}
 
       <div className="flex gap-2">
-        <button
+        <Button
           type="submit"
-          className="flex-1 py-2 px-4 btn-brutal font-black text-sm sm:text-base"
-          style={{ background: "var(--color-success)" }}
+          className="flex-1 font-black"
+          variant="success"
+          size="default"
         >
           {isFolder ? "📁 CREATE FOLDER" : "ADD BOOKMARK"}
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
           onClick={() => {
             setIsExpanded(false);
@@ -117,11 +119,12 @@ function AddBookmark({ onAdd, currentFolderId }: AddBookmarkProps) {
             setUrl("");
             setIsFolder(false);
           }}
-          className="flex-1 py-2 px-4 btn-brutal font-black text-sm sm:text-base"
-          style={{ background: "var(--color-white)" }}
+          className="flex-1 font-black"
+          variant="default"
+          size="default"
         >
           CANCEL
-        </button>
+        </Button>
       </div>
     </form>
   );
