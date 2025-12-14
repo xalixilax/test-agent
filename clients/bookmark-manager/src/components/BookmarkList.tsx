@@ -3,7 +3,7 @@ import type { BookmarkWithTags } from "../types";
 import { useUpdateBookmark } from "../db/useBookmark";
 import { useTags, useAddTag } from "../db/useTag";
 import { useAddBookmarkTag, useDeleteBookmarkTag } from "../db/useBookmarkTag";
-import { Button } from "./ui/button";
+import { Button } from "@design-system/ui/button";
 
 interface BookmarkListProps {
   items: BookmarkWithTags[];
@@ -182,7 +182,7 @@ function BookmarkList({
                       e.stopPropagation();
                       onDelete(item.id);
                     }}
-                    variant="danger"
+                    variant="destructive"
                     size="icon"
                     aria-label="Delete folder"
                   >
@@ -418,7 +418,6 @@ function BookmarkList({
                             handleSaveNote(item.id);
                           }}
                           className="flex-1"
-                          variant="success"
                           size="sm"
                         >
                           SAVE

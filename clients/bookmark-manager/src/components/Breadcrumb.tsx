@@ -1,5 +1,5 @@
 import type { BreadcrumbItem } from "../types";
-import { Button } from "./ui/button";
+import { Button } from "@design-system/ui/button";
 
 interface BreadcrumbProps {
   path: BreadcrumbItem[];
@@ -10,10 +10,10 @@ function Breadcrumb({ path, onNavigate }: BreadcrumbProps) {
   return (
     <nav className="flex items-center gap-2 text-xs sm:text-sm overflow-x-auto pb-1">
       {path.map((item, index) => (
-        <div key={item.id} className="flex items-center gap-2 flex-shrink-0">
+        <div key={item.id} className="flex items-center gap-2 shrink-0">
           <Button
             onClick={() => onNavigate(item.id)}
-            variant={index === path.length - 1 ? "selected" : "default"}
+            variant={index === path.length - 1 ? "default" : "default"}
             size="sm"
           >
             {item.title || "Bookmarks"}

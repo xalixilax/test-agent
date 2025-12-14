@@ -1,4 +1,4 @@
-import { Button } from "./ui/button";
+import { Button } from "@design-system/ui/button";
 
 interface SearchBarProps {
   searchTerm: string;

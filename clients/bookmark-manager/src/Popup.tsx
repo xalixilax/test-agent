@@ -3,7 +3,7 @@ import SearchBar from "./components/SearchBar";
 import { openFullScreen } from "./hooks/useExtension";
 import { useBookmarksWithTags } from "./db/useBookmark";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Button } from "./components/ui/button";
+import { Button } from "@design-system/ui/button";
 
 const queryClient = new QueryClient();
 
@@ -48,11 +48,9 @@ function PopupContent() {
           </div>
           <Button
             onClick={openFullScreen}
-            className="font-black gap-1"
-            variant="default"
-            size="default"
             title="Open full view"
           >
+            asdasd
             <svg
               className="w-4 h-4"
               fill="none"
@@ -82,8 +80,7 @@ function PopupContent() {
                   onClick={() =>
                     bookmark.url && handleOpenBookmark(bookmark.url)
                   }
-                  className="w-full text-left justify-start p-2 h-auto hover:translate-x-0.5 hover:translate-y-0.5 flex-col items-start"
-                  variant="default"
+                  className="w-full"
                 >
                   <div className="w-full">
                     <div className="font-bold text-sm truncate">

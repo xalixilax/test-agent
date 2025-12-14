@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button } from "./ui/button";
+import { Button } from "@design-system/ui/button";
 
 interface AddBookmarkProps {
   onAdd: (title: string, url: string, isFolder: boolean) => void;
@@ -63,7 +63,7 @@ function AddBookmark({ onAdd, currentFolderId }: AddBookmarkProps) {
         <Button
           type="button"
           onClick={() => setIsFolder(false)}
-          variant={!isFolder ? "selected" : "default"}
+          variant={!isFolder ? "outline" : "default"}
           size="sm"
         >
           BOOKMARK
@@ -71,7 +71,7 @@ function AddBookmark({ onAdd, currentFolderId }: AddBookmarkProps) {
         <Button
           type="button"
           onClick={() => setIsFolder(true)}
-          variant={isFolder ? "selected" : "default"}
+          variant={isFolder ? "outline" : "default"}
           size="sm"
         >
           FOLDER
@@ -106,7 +106,7 @@ function AddBookmark({ onAdd, currentFolderId }: AddBookmarkProps) {
         <Button
           type="submit"
           className="flex-1 font-black"
-          variant="success"
+          variant="default"
           size="default"
         >
           {isFolder ? "📁 CREATE FOLDER" : "ADD BOOKMARK"}
