@@ -46,10 +46,7 @@ function PopupContent() {
               compact
             />
           </div>
-          <Button
-            onClick={openFullScreen}
-            title="Open full view"
-          >
+          <Button onClick={openFullScreen} title="Open full view">
             asdasd
             <svg
               className="w-4 h-4"

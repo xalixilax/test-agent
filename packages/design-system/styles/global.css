@@ -128,9 +128,11 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.5px;
 } */
-@import url('https://fonts.googleapis.com/css2?family=Lexend+Mega:wght@100..900&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Lexend+Mega:wght@100..900&display=swap");
 @import "tailwindcss";
+@source "../../../..";
 @import "tw-animate-css";
+
 /* @import "@fontsource-variable/nunito-sans"; */
 
 @custom-variant dark (&:is(.dark *));
@@ -188,6 +190,37 @@ body {
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  --blue-background: oklab(94.917% -0.02891 -0.0018);
+  --blue-muted: oklab(85.455% -0.05259 -0.01106);
+  --blue-foreground-muted: oklab(81.483% -0.05715 -0.05878);
+  --blue-foreground: oklab(80.905% -0.08543 -0.05441);
+  
+  --green-background: oklab(83.244% -0.04483 0.03895);
+  --green-muted: oklab(92.571% -0.09996 0.09105);
+  --green-foreground: oklab(86.8001% -0.1262 0.0913);
+  --green-foreground: oklab(74.056% -0.08127 0.04627);
+  
+  --yellow-background: oklab(97.227% -0.0399 0.11896);
+  --yellow-muted: oklab(89.845% -0.00967 0.15094);
+  --yellow-foreground: oklab(87.804% -0.02389 0.16528);
+  --yellow-foreground: oklab(75.161% 0.03279 0.14852);
+ 
+  --orange-background: oklab(89.596% 0.02264 0.05526);
+  --orange-muted: oklab(79.374% 0.09215 0.08414);
+  --orange-foreground: oklab(72.942% 0.1398 0.09441);
+  --orange-foreground: oklab(71.159% 0.16703 0.07027);
+ 
+  --pink-background: oklab(93.687% 0.04203 -0.03172);
+  --pink-muted: oklab(86.773% 0.07299 0.00897);
+  --pink-foreground: oklab(85.493% 0.10617 -0.05132);
+  --pink-foreground: oklab(72.828% 0.19519 -0.02754);
+  
+  --purple-background: oklab(91.244% 0.0112 -0.02354);
+  --purple-muted: oklab(77.561% 0.06854 -0.11679);
+  --purple-foreground: oklab(69.377% 0.06106 -0.13453);
+  --purple-foreground: oklab(52.464% 0.16023 -0.17547);
+  
 }
 
 .dark {
@@ -264,11 +297,68 @@ body {
   --radius-2xl: calc(var(--radius) + 8px);
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
+
+  --font-lexend: "Lexend Mega", sans-serif;
+
+  --color-blue-foreground: var(--blue-foreground);
+  --color-blue-foreground-muted: var(--blue-foreground-muted);
+  --color-blue-muted: var(--blue-muted);
+  --color-blue-background: var(--blue-background); 
+
+  --color-green-foreground: var(--green-foreground);
+  --color-green-foreground-muted: var(--green-foreground);
+  --color-green-muted: var(--green-muted);
+  --color-green-background: var(--green-background);
+
+  --color-yellow-foreground: var(--yellow-foreground);
+  --color-yellow-foreground-muted: var(--yellow-foreground);
+  --color-yellow-muted: var(--yellow-muted);
+  --color-yellow-background: var(--yellow-background);
+
+  --color-orange-foreground: var(--orange-foreground);
+  --color-orange-foreground-muted: var(--orange-foreground);
+  --color-orange-muted: var(--orange-muted);
+  --color-orange-background: var(--orange-background);
+
+  --color-pink-foreground: var(--pink-foreground);
+  --color-pink-foreground-muted: var(--pink-foreground);
+  --color-pink-muted: var(--pink-muted);
+  --color-pink-background: var(--pink-background);
+
+  --color-purple-foreground: var(--purple-foreground);
+  --color-purple-foreground-muted: var(--purple-foreground);
+  --color-purple-muted: var(--purple-muted);
+  --color-purple-background: var(--purple-background);
+}
+
+@theme {
+  --shadow-*: initial;
   --shadow: 4px 4px 0px var(--color-foreground);
   --shadow-lg: 6px 6px 0px var(--color-foreground);
   --shadow-sm: 2px 2px 0px var(--color-foreground);
-  --font-display: "Lexend Mega", sans-serif;
 }
+
+/* Utility classes for brutal shadows */
+/* @layer utilities {
+  .shadow {
+    box-shadow: 4px 4px 0px var(--color-foreground);
+  }
+  .shadow-sm {
+    box-shadow: 2px 2px 0px var(--color-foreground);
+  }
+  .shadow-md {
+    box-shadow: 4px 4px 0px var(--color-foreground);
+  }
+  .shadow-lg {
+    box-shadow: 6px 6px 0px var(--color-foreground);
+  }
+  .hover\:shadow-lg:hover {
+    box-shadow: 6px 6px 0px var(--color-foreground);
+  }
+  .active\:shadow-sm:active {
+    box-shadow: 2px 2px 0px var(--color-foreground);
+  }
+} */
 
 @layer base {
   * {

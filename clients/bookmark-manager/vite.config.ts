@@ -12,6 +12,7 @@ export default defineConfig({
 	  "@design-system": path.resolve(__dirname, "../../packages/design-system"),
     },
   },
+	base: "./",
 	build: {
 		outDir: "dist",
 		emptyOutDir: true,

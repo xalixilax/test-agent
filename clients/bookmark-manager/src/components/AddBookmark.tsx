@@ -32,8 +32,6 @@ function AddBookmark({ onAdd, currentFolderId }: AddBookmarkProps) {
             setIsFolder(false);
           }}
           className="flex-1 font-black"
-          variant="secondary"
-          size="lg"
         >
           + ADD BOOKMARK
         </Button>
