@@ -13,7 +13,7 @@ export function Folder({ item, onNavigateToFolder, onDelete }: FolderProps) {
   return (
     <Card
       key={item.id}
-      className="relative card-brutal p-3 sm:p-4 cursor-pointer hover:bg-purple-background transition-colors bg-purple-background"
+      className="relative card-brutal p-3 sm:p-4 cursor-pointer hover:bg-purple-background transition-colors bg-green-background"
       onClick={() => onNavigateToFolder(item.id, item.title)}
     >
       <div className="flex flex-col h-full items-center justify-center py-8">
