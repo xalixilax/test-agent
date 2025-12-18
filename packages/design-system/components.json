@@ -11,6 +11,8 @@
     "prefix": ""
   },
   "iconLibrary": "lucide",
+  "menuColor": "inverted",
+  "menuAccent": "subtle",
   "aliases": {
     "components": "@design-system/components",
     "utils": "@design-system/lib/utils",
@@ -18,7 +20,7 @@
     "lib": "@design-system/lib",
     "hooks": "@design-system/hooks"
   },
-  "menuColor": "inverted",
-  "menuAccent": "subtle",
-  "registries": {}
+  "registries": {
+    "@coss": "https://coss.com/ui/r/{name}.json"
+  }
 }
