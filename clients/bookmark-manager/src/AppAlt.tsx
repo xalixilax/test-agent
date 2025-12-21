@@ -79,7 +79,16 @@ const processChromeBookmarks = (
 };
 
 function BookmarkManager() {
-  const [currentFolderId, setCurrentFolderId] = useState<number | null>(null);
+  // Initialize from URL parameter
+  const getInitialFolderId = () => {
+    const params = new URLSearchParams(window.location.search);
+    const parentId = params.get("parentId");
+    return parentId ? parseInt(parentId) : null;
+  };
+
+  const [currentFolderId, setCurrentFolderId] = useState<number | null>(
+    getInitialFolderId
+  );
   const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbItem[]>([
     { id: "root", title: "Bookmarks" },
   ]);
@@ -111,10 +120,19 @@ function BookmarkManager() {
       )
     : bookmarks;
 
-  // Navigate to a folder
+  // Navigate to a folder and update URL
   const navigateToFolder = useCallback(
     (folderId: number | null, folderTitle: string) => {
       setCurrentFolderId(folderId);
+
+      // Update URL with pushState for browser history
+      const url = new URL(window.location.href);
+      if (folderId !== null) {
+        url.searchParams.set("parentId", folderId.toString());
+      } else {
+        url.searchParams.delete("parentId");
+      }
+      window.history.pushState({ folderId }, "", url.toString());
 
       if (folderId === null) {
         // Navigate to root
@@ -130,14 +148,18 @@ function BookmarkManager() {
     []
   );
 
-  // Navigate via breadcrumb
+  // Navigate via breadcrumb and update URL
   const navigateToBreadcrumb = useCallback((id: string) => {
+    const url = new URL(window.location.href);
+
     if (id === "root") {
       setCurrentFolderId(null);
       setBreadcrumbs([{ id: "root", title: "Bookmarks" }]);
+      url.searchParams.delete("parentId");
     } else {
       const folderId = parseInt(id);
       setCurrentFolderId(folderId);
+      url.searchParams.set("parentId", folderId.toString());
 
       // Trim breadcrumbs to this point
       setBreadcrumbs((prev) => {
@@ -145,12 +167,41 @@ function BookmarkManager() {
         return prev.slice(0, index + 1);
       });
     }
+
+    window.history.pushState(
+      { folderId: id === "root" ? null : parseInt(id) },
+      "",
+      url.toString()
+    );
   }, []);
 
   // Load bookmarks immediately on mount
   useEffect(() => {
     loadBookmarks();
   }, [loadBookmarks]);
+
+  // Handle browser back/forward navigation
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      const params = new URLSearchParams(window.location.search);
+      const parentId = params.get("parentId");
+      const folderId = parentId ? parseInt(parentId) : null;
+
+      setCurrentFolderId(folderId);
+
+      // Rebuild breadcrumbs based on current folder
+      // You might need to traverse bookmarks to rebuild the full path
+      if (folderId === null) {
+        setBreadcrumbs([{ id: "root", title: "Bookmarks" }]);
+      } else {
+        // For now, just update the state - breadcrumbs will rebuild on next navigation
+        // In a more complete implementation, you'd traverse the bookmark tree to rebuild the path
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   const handleAddBookmark = (title: string, url: string, isFolder: boolean) => {
     addBookmark(title, url, currentFolderId, isFolder ? 1 : 0);
@@ -234,27 +285,7 @@ function BookmarkManager() {
   //   );
   // }
 
-  const bookmarkQuery = useBookmarksTree();
-
-  const folder = bookmarkQuery.data?.filter(
-    (node) => node.children !== undefined
-  );
-
-  const bookmark = bookmarkQuery.data?.filter((node) => node.url !== undefined);
-
-  console.log("Folder nodes:", folder);
-  console.log("Bookmark nodes:", bookmark);
-
-  // set current parent id in the url query parameter
-  useEffect(() => {
-    const url = new URL(window.location.href);
-    if (currentFolderId !== null) {
-      url.searchParams.set("parentId", currentFolderId.toString());
-    } else {
-      url.searchParams.delete("parentId");
-    }
-    window.history.replaceState({}, "", url.toString());
-  }, [currentFolderId]);
+  const bookmarkQuery = useBookmarksTree(currentFolderId);
 
   if (bookmarkQuery.isLoading) {
     return (
@@ -279,6 +310,24 @@ function BookmarkManager() {
       </div>
     );
   }
+
+  // Convert Chrome bookmarks to BookmarkWithTags format
+  const convertedBookmarks: BookmarkWithTags[] = (bookmarkQuery.data || []).map(
+    (node) => ({
+      id: parseInt(node.id),
+      chromeBookmarkId: node.id,
+      chromeParentId: node.parentId,
+      parentId: node.parentId ? parseInt(node.parentId) : null,
+      title: node.title || "Untitled",
+      url: node.url || null,
+      isFolder: node.children ? 1 : 0,
+      dateAdded: node.dateAdded ? new Date(node.dateAdded) : null,
+      tags: [],
+      note: null,
+      rating: null,
+      screenshot: null,
+    })
+  );
 
   return (
     <div
@@ -313,29 +362,14 @@ function BookmarkManager() {
             currentFolderId={currentFolderId}
           />
           <SearchBar searchTerm={searchTerm} onSearch={setSearchTerm} />
-          {/* <BookmarkList
-            items={filteredBookmarks}
+          <BookmarkList
+            items={convertedBookmarks}
             onDelete={handleDeleteBookmark}
             onCaptureScreenshot={captureScreenshot}
             onDeleteScreenshot={deleteScreenshot}
             onNavigateToFolder={navigateToFolder}
             isSearching={!!searchTerm}
-          /> */}
-          {folder &&
-            folder.map((item) => (
-              <div className="p-2 border-2 border-black mb-2" key={item.id}>
-                <strong>{item.title}</strong> - ID: {item.id} -{" "}
-                {item.url ? `URL: ${item.url}` : "Folder"}
-              </div>
-            ))}
-          {bookmark &&
-            bookmark.map((item) => (
-              <div className="p-2 border-2 border-black mb-2" key={item.id}>
-                <strong>{item.title}</strong> - ID: {item.id} - URL: {item.url}
-              </div>
-            ))}
-
-          <NewBookmarkList tree={bookmarkQuery.data} />
+          />
         </div>
       </div>
     </div>
@@ -345,7 +379,7 @@ function BookmarkManager() {
 function NewBookmarkList({
   tree,
 }: {
-  tree: chrome.bookmarks.BookmarkTreeNode;
+  tree: chrome.bookmarks.BookmarkTreeNode[];
 }) {
   console.log("Bookmark tree:", tree);
 
@@ -366,12 +400,16 @@ function App() {
 
 export default App;
 
-function useBookmarksTree() {
+function useBookmarksTree(folderId: number | null) {
   return useQuery({
-    queryKey: ["getBookmarksTree"],
+    queryKey: ["getBookmarksTree", folderId],
     queryFn: async () => {
-      const nodes = await chrome.bookmarks.getTree();
-      return nodes[0].children?.find((node) => node.id === "1")?.children; // "1" is usually the "Bookmarks Bar"
+      // If no folderId specified, default to Bookmarks Bar ("1")
+      const targetId = folderId?.toString() || "1";
+
+      // Get the specific folder's children
+      const nodes = await chrome.bookmarks.getSubTree(targetId);
+      return nodes[0]?.children; // Return children of the target folder
     },
   });
 }

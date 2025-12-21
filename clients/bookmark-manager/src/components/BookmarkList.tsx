@@ -50,7 +50,6 @@ function BookmarkList({
 
   return (
     <>
-      {/* Responsive grid: 1 col on mobile, 2 on tablet, 3 on desktop */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
         {items.map((item) => {
           const isFolder = item.isFolder === 1;

@@ -29,6 +29,13 @@
       "when": 1765341013475,
       "tag": "0003_salty_gateway",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1766329391899,
+      "tag": "0004_massive_harpoon",
+      "breakpoints": true
     }
   ]
 }
