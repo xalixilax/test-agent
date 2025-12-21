@@ -124,7 +124,7 @@ type RouteHelper<
 				input: InferInput<TRouter[TRoute]>,
 			) => Promise<InferOutput<TRouter[TRoute]>>;
 	// biome-ignore lint/suspicious/noConfusingVoidType: void is used to detect procedures without input
-	mutate: [InferInput<TRouter[TRoute]>] extends [void]
+	 mutate: [InferInput<TRouter[TRoute]>] extends [void]
 		? (input?: undefined) => Promise<InferOutput<TRouter[TRoute]>>
 		: (
 				input: InferInput<TRouter[TRoute]>,

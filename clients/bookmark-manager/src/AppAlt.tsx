@@ -5,7 +5,11 @@ import AddBookmark from "./components/AddBookmark";
 import Breadcrumb from "./components/Breadcrumb";
 import { useBookmarks } from "./hooks/useBookmarks";
 import { useUpdateBookmark, useSyncChromeBookmarks } from "./db/useBookmark";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  QueryClient,
+  QueryClientProvider,
+  useQuery,
+} from "@tanstack/react-query";
 import type { BreadcrumbItem, BookmarkWithTags } from "./types";
 
 const queryClient = new QueryClient();
@@ -148,72 +152,6 @@ function BookmarkManager() {
     loadBookmarks();
   }, [loadBookmarks]);
 
-  // Sync Chrome bookmarks asynchronously in the background
-  useEffect(() => {
-    const syncBookmarks = async () => {
-      if (typeof chrome !== "undefined" && chrome.bookmarks) {
-        try {
-          setIsSyncing(true);
-          const tree = await chrome.bookmarks.getTree();
-          const hierarchicalBookmarks = processChromeBookmarks(tree);
-          console.log("Processed Chrome bookmarks:", tree);
-
-          // Get screenshots from Chrome storage
-          const result = await chrome.storage.local.get("screenshots");
-          const screenshots: Record<
-            string,
-            { dataUrl: string; timestamp: number; url: string }
-          > =
-            (result.screenshots as Record<
-              string,
-              { dataUrl: string; timestamp: number; url: string }
-            >) || {};
-
-          // Add screenshot data to bookmarks
-          const bookmarksWithScreenshots = hierarchicalBookmarks.map(
-            (bookmark) => ({
-              ...bookmark,
-              screenshot:
-                screenshots[bookmark.chromeBookmarkId]?.dataUrl || undefined,
-            })
-          );
-
-          await syncChromeBookmarksMutation.mutateAsync({
-            bookmarks: bookmarksWithScreenshots,
-          });
-
-          console.log(
-            `Synced ${hierarchicalBookmarks.length} Chrome bookmarks`
-          );
-        } catch (error) {
-          console.error("Failed to sync Chrome bookmarks:", error);
-        } finally {
-          setIsSyncing(false);
-        }
-      }
-    };
-
-    // Run sync on mount
-    syncBookmarks();
-
-    // Listen for bookmark changes from background script
-    if (typeof chrome !== "undefined" && chrome.runtime) {
-      const handleMessage = (message: any) => {
-        if (message.action === "bookmarkChanged") {
-          console.log("Bookmark changed, re-syncing...");
-          syncBookmarks();
-        }
-      };
-
-      chrome.runtime.onMessage.addListener(handleMessage);
-
-      return () => {
-        chrome.runtime.onMessage.removeListener(handleMessage);
-      };
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Only run once on mount
-
   const handleAddBookmark = (title: string, url: string, isFolder: boolean) => {
     addBookmark(title, url, currentFolderId, isFolder ? 1 : 0);
   };
@@ -285,13 +223,59 @@ function BookmarkManager() {
     [bookmarks, updateBookmarkMutation]
   );
 
-  if (loading) {
+  // if (loading) {
+  //   return (
+  //     <div
+  //       className="flex items-center justify-center h-screen"
+  //       style={{ background: "var(--color-bg)" }}
+  //     >
+  //       <div className="text-2xl font-bold">LOADING...</div>
+  //     </div>
+  //   );
+  // }
+
+  const bookmarkQuery = useBookmarksTree();
+
+  const folder = bookmarkQuery.data?.filter(
+    (node) => node.children !== undefined
+  );
+
+  const bookmark = bookmarkQuery.data?.filter((node) => node.url !== undefined);
+
+  console.log("Folder nodes:", folder);
+  console.log("Bookmark nodes:", bookmark);
+
+  // set current parent id in the url query parameter
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (currentFolderId !== null) {
+      url.searchParams.set("parentId", currentFolderId.toString());
+    } else {
+      url.searchParams.delete("parentId");
+    }
+    window.history.replaceState({}, "", url.toString());
+  }, [currentFolderId]);
+
+  if (bookmarkQuery.isLoading) {
     return (
       <div
         className="flex items-center justify-center h-screen"
         style={{ background: "var(--color-bg)" }}
       >
         <div className="text-2xl font-bold">LOADING...</div>
+      </div>
+    );
+  }
+
+  if (bookmarkQuery.isError) {
+    return (
+      <div
+        className="flex items-center justify-center h-screen"
+        style={{ background: "var(--color-bg)" }}
+      >
+        <div className="text-2xl font-bold">
+          ERROR LOADING BOOKMARKS: {String(bookmarkQuery.error)}
+        </div>
       </div>
     );
   }
@@ -314,9 +298,9 @@ function BookmarkManager() {
               </h1>
               <p className="hidden md:block text-sm text-white font-bold mt-1">
                 YOUR LINK COLLECTION
-                {isSyncing && (
+                {/* {isSyncing && (
                   <span className="ml-2 text-xs opacity-75">(SYNCING...)</span>
-                )}
+                )} */}
               </p>
             </div>
           </div>
@@ -329,16 +313,45 @@ function BookmarkManager() {
             currentFolderId={currentFolderId}
           />
           <SearchBar searchTerm={searchTerm} onSearch={setSearchTerm} />
-          <BookmarkList
+          {/* <BookmarkList
             items={filteredBookmarks}
             onDelete={handleDeleteBookmark}
             onCaptureScreenshot={captureScreenshot}
             onDeleteScreenshot={deleteScreenshot}
             onNavigateToFolder={navigateToFolder}
             isSearching={!!searchTerm}
-          />
+          /> */}
+          {folder &&
+            folder.map((item) => (
+              <div className="p-2 border-2 border-black mb-2" key={item.id}>
+                <strong>{item.title}</strong> - ID: {item.id} -{" "}
+                {item.url ? `URL: ${item.url}` : "Folder"}
+              </div>
+            ))}
+          {bookmark &&
+            bookmark.map((item) => (
+              <div className="p-2 border-2 border-black mb-2" key={item.id}>
+                <strong>{item.title}</strong> - ID: {item.id} - URL: {item.url}
+              </div>
+            ))}
+
+          <NewBookmarkList tree={bookmarkQuery.data} />
         </div>
       </div>
+    </div>
+  );
+}
+
+function NewBookmarkList({
+  tree,
+}: {
+  tree: chrome.bookmarks.BookmarkTreeNode;
+}) {
+  console.log("Bookmark tree:", tree);
+
+  return (
+    <div className="p-4 border-4 border-black">
+      <pre>{JSON.stringify(tree, null, 2)}</pre>
     </div>
   );
 }
@@ -352,3 +365,13 @@ function App() {
 }
 
 export default App;
+
+function useBookmarksTree() {
+  return useQuery({
+    queryKey: ["getBookmarksTree"],
+    queryFn: async () => {
+      const nodes = await chrome.bookmarks.getTree();
+      return nodes[0].children?.find((node) => node.id === "1")?.children; // "1" is usually the "Bookmarks Bar"
+    },
+  });
+}

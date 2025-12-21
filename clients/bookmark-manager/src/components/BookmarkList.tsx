@@ -1,13 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import type { BookmarkWithTags } from "../types";
-import { useUpdateBookmark } from "../db/useBookmark";
-import { useTags, useAddTag } from "../db/useTag";
-import { useAddBookmarkTag, useDeleteBookmarkTag } from "../db/useBookmarkTag";
 import { Button } from "@design-system/ui/button";
-import { Card } from "@design-system/ui/card";
-import { EllipsisVertical, Star } from "lucide-react";
-import { Rating } from "./rating";
 import { Folder } from "./folder";
+import { BookmarkCard } from "./bookmark-card";
 
 interface BookmarkListProps {
   items: BookmarkWithTags[];
@@ -29,27 +24,6 @@ function BookmarkList({
   const [selectedScreenshot, setSelectedScreenshot] = useState<string | null>(
     null
   );
-  const [openMenuId, setOpenMenuId] = useState<number | null>(null);
-  const [editingNoteId, setEditingNoteId] = useState<number | null>(null);
-  const [noteText, setNoteText] = useState("");
-  const [editingRatingId, setEditingRatingId] = useState<number | null>(null);
-  const [selectedTag, setSelectedTag] = useState<number | null>(null);
-  const [newTagName, setNewTagName] = useState("");
-
-  const updateBookmarkMutation = useUpdateBookmark();
-  const { data: allTags = [] } = useTags();
-  const addTagMutation = useAddTag();
-  const addBookmarkTagMutation = useAddBookmarkTag();
-  const deleteBookmarkTagMutation = useDeleteBookmarkTag();
-
-  // Close menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = () => setOpenMenuId(null);
-    if (openMenuId) {
-      document.addEventListener("click", handleClickOutside);
-      return () => document.removeEventListener("click", handleClickOutside);
-    }
-  }, [openMenuId]);
 
   const handleOpenBookmark = (url: string) => {
     if (typeof chrome !== "undefined" && chrome.tabs) {
@@ -63,43 +37,6 @@ function BookmarkList({
     if (!timestamp) return "Unknown";
     return new Date(timestamp).toLocaleDateString();
   };
-
-  const handleSaveNote = (id: number) => {
-    updateBookmarkMutation.mutate({ id, note: noteText });
-    setEditingNoteId(null);
-    setNoteText("");
-  };
-
-  const handleUpdateRating = (id: number, rating: number) => {
-    updateBookmarkMutation.mutate({ id, rating });
-    setEditingRatingId(null);
-  };
-
-  const handleAddTag = (bookmarkId: number) => {
-    if (selectedTag) {
-      addBookmarkTagMutation.mutate({ bookmarkId, tagId: selectedTag });
-      setSelectedTag(null);
-    }
-  };
-
-  const handleCreateAndAddTag = (bookmarkId: number) => {
-    if (newTagName.trim()) {
-      addTagMutation.mutate(
-        { name: newTagName.trim() },
-        {
-          onSuccess: (newTag: any) => {
-            addBookmarkTagMutation.mutate({ bookmarkId, tagId: newTag.id });
-            setNewTagName("");
-          },
-        }
-      );
-    }
-  };
-
-  const handleRemoveTag = (bookmarkId: number, tagId: number) => {
-    deleteBookmarkTagMutation.mutate({ bookmarkId, tagId });
-  };
-
 
   if (items.length === 0) {
     return (
@@ -116,23 +53,31 @@ function BookmarkList({
       {/* Responsive grid: 1 col on mobile, 2 on tablet, 3 on desktop */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
         {items.map((item) => {
-          const isEditingNote = editingNoteId === item.id;
-          const isEditingRating = editingRatingId === item.id;
           const isFolder = item.isFolder === 1;
 
           // Folder card
           if (isFolder) {
             return (
-              <Folder key={item.id} item={item} onNavigateToFolder={onNavigateToFolder} onDelete={onDelete} />
+              <Folder
+                key={item.id}
+                item={item}
+                onNavigateToFolder={onNavigateToFolder}
+                onDelete={onDelete}
+              />
             );
           }
 
           // Regular bookmark card
           return (
             <BookmarkCard
+              key={item.id}
               item={item}
-              isEditingRating={isEditingRating}
-              isEditingNote={isEditingNote}
+              onDelete={onDelete}
+              onCaptureScreenshot={onCaptureScreenshot}
+              onDeleteScreenshot={onDeleteScreenshot}
+              onOpenBookmark={handleOpenBookmark}
+              onViewScreenshot={setSelectedScreenshot}
+              formatDate={formatDate}
             />
           );
         })}
@@ -164,286 +109,6 @@ function BookmarkList({
       )}
     </>
   );
-
-  function BookmarkCard({
-    item,
-    isEditingRating,
-    isEditingNote,
-  }: {
-    item: BookmarkWithTags;
-    isEditingRating: boolean;
-    isEditingNote: boolean;
-  }) {
-    return (
-      <Card
-        key={item.id}
-        className="relative card-brutal p-3 sm:p-4"
-        style={{ background: "var(--color-white)" }}
-      >
-        {/* Bookmark Card */}
-        <div className="flex flex-col h-full">
-          {/* Kebab menu */}
-          <div className="absolute top-2 right-2">
-            <Button
-              onClick={(e) => {
-                e.stopPropagation();
-                setOpenMenuId(openMenuId === item.id ? null : item.id);
-              }}
-              className="flex-col gap-1"
-              variant="default"
-              size="icon"
-              aria-label="Bookmark actions menu"
-              aria-expanded={openMenuId === item.id}
-              aria-haspopup="true"
-            >
-              <EllipsisVertical />
-            </Button>
-
-            {openMenuId === item.id && (
-              <div
-                className="absolute right-0 mt-1 w-40 border-3 border-black z-10 shadow-brutal"
-                style={{ background: "var(--color-white)" }}
-                role="menu"
-                aria-label="Bookmark actions"
-              >
-                {item.url && (
-                  <Button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onCaptureScreenshot(item.id, item.url!);
-                      setOpenMenuId(null);
-                    }}
-                    className="w-full justify-start gap-2 border-b-2 rounded-none"
-                    variant="ghost"
-                    size="sm"
-                    role="menuitem"
-                  >
-                    📷 SCREENSHOT
-                  </Button>
-                )}
-                {item.screenshot && (
-                  <Button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDeleteScreenshot(item.id);
-                      setOpenMenuId(null);
-                    }}
-                    className="w-full justify-start gap-2 border-b-2 rounded-none"
-                    variant="ghost"
-                    size="sm"
-                    role="menuitem"
-                  >
-                    🗑️ DEL SCREENSHOT
-                  </Button>
-                )}
-                <Button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDelete(item.id);
-                    setOpenMenuId(null);
-                  }}
-                  className="w-full justify-start gap-2 hover:bg-red-100 rounded-none"
-                  style={{ color: "var(--color-danger)" }}
-                  variant="ghost"
-                  size="sm"
-                  role="menuitem"
-                >
-                  ❌ DELETE
-                </Button>
-              </div>
-            )}
-          </div>
-
-          {item.screenshot && (
-            <div
-              className="w-full h-20 sm:h-24 border-3 border-black mb-2 sm:mb-3 overflow-hidden cursor-pointer hover:opacity-80 transition-opacity"
-              onClick={() => setSelectedScreenshot(item.screenshot!)}
-              title="Click to view full screenshot"
-            >
-              <img
-                src={item.screenshot}
-                alt={`Screenshot of ${item.title}`}
-                className="w-full h-full object-cover"
-              />
-            </div>
-          )}
-
-          <h3
-            className="font-black text-sm sm:text-base mb-1 cursor-pointer hover:underline pr-8"
-            onClick={() => item.url && handleOpenBookmark(item.url)}
-            title={item.title}
-          >
-            {item.title.toUpperCase()}
-          </h3>
-
-          {item.url && (
-            <a
-              href={item.url}
-              onClick={(e) => {
-                e.preventDefault();
-                handleOpenBookmark(item.url!);
-              }}
-              className="text-xs font-bold hover:underline block mb-2 wrap-break-word"
-              title={item.url}
-              style={{ color: "var(--color-primary)" }}
-            >
-              {item.url}
-            </a>
-          )}
-
-          {/* Rating */}
-          <div className="mb-2">
-            <Rating
-              rating={item.rating}
-              setRating={(rating: number) =>
-                handleUpdateRating(item.id, rating)
-              }
-            />
-          </div>
-
-          {/* Tags */}
-          <div className="mb-2">
-            <div className="flex flex-wrap gap-1 mb-1">
-              {item.tags?.map((tag) => (
-                <span
-                  key={tag.id}
-                  className="inline-flex items-center gap-1 px-2 py-1 text-xs font-bold border-2 border-black"
-                  style={{ background: "var(--color-secondary)" }}
-                >
-                  {tag.name}
-                  <Button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleRemoveTag(item.id, tag.id);
-                    }}
-                    className="hover:text-red-600 w-4 h-4 p-0 text-sm"
-                    variant="ghost"
-                    size="icon"
-                  >
-                    ×
-                  </Button>
-                </span>
-              ))}
-            </div>
-            <div className="flex gap-1">
-              <select
-                value={selectedTag || ""}
-                onChange={(e) => setSelectedTag(Number(e.target.value))}
-                className="flex-1 text-xs font-bold border-2 border-black px-2 py-1"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <option value="">Add tag...</option>
-                {allTags
-                  .filter((tag) => !item.tags?.some((t) => t.id === tag.id))
-                  .map((tag) => (
-                    <option key={tag.id} value={tag.id}>
-                      {tag.name}
-                    </option>
-                  ))}
-              </select>
-              <Button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleAddTag(item.id);
-                }}
-                disabled={!selectedTag}
-                variant="default"
-                size="sm"
-              >
-                +
-              </Button>
-            </div>
-            <div className="flex gap-1 mt-1">
-              <input
-                type="text"
-                value={newTagName}
-                onChange={(e) => setNewTagName(e.target.value)}
-                placeholder="New tag..."
-                className="flex-1 text-xs font-bold border-2 border-black px-2 py-1"
-                onClick={(e) => e.stopPropagation()}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    handleCreateAndAddTag(item.id);
-                  }
-                }}
-              />
-              <Button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleCreateAndAddTag(item.id);
-                }}
-                disabled={!newTagName.trim()}
-                variant="default"
-                size="sm"
-              >
-                CREATE
-              </Button>
-            </div>
-          </div>
-
-          {/* Note */}
-          <div className="mb-2">
-            {isEditingNote ? (
-              <div>
-                <textarea
-                  value={noteText}
-                  onChange={(e) => setNoteText(e.target.value)}
-                  placeholder="Add a note..."
-                  className="w-full text-xs font-bold border-2 border-black px-2 py-1 min-h-20"
-                  onClick={(e) => e.stopPropagation()}
-                />
-                <div className="flex gap-1 mt-1">
-                  <Button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleSaveNote(item.id);
-                    }}
-                    className="flex-1"
-                    size="sm"
-                  >
-                    SAVE
-                  </Button>
-                  <Button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setEditingNoteId(null);
-                      setNoteText("");
-                    }}
-                    className="flex-1"
-                    variant="default"
-                    size="sm"
-                  >
-                    CANCEL
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setEditingNoteId(item.id);
-                  setNoteText(item.note || "");
-                }}
-                className="cursor-pointer hover:bg-gray-50 border-2 border-dashed border-gray-300 px-2 py-2 min-h-12"
-              >
-                {item.note ? (
-                  <p className="text-xs font-bold">{item.note}</p>
-                ) : (
-                  <p className="text-xs font-bold text-gray-400">
-                    Click to add note...
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
-
-          <p className="text-xs font-bold mt-auto" style={{ opacity: 0.6 }}>
-            {formatDate(item.dateAdded)}
-          </p>
-        </div>
-      </Card>
-    );
-  }
 }
 
 export default BookmarkList;
