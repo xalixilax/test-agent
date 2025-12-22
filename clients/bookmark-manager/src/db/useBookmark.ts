@@ -57,6 +57,22 @@ export const useBookmarksByParent = (
 	});
 };
 
+export const useBookmarkById = (
+	chromeBookmarkId: string,
+	options?: Omit<
+		UseQueryOptions<InferOutput<AppRouter["getBookmarkById"]>, Error>,
+		"queryKey" | "queryFn"
+	>,
+) => {
+	return useQuery({
+		queryKey: ["getBookmarkById", chromeBookmarkId],
+		queryFn: () => client.getBookmarkById.query({ chromeBookmarkId }),
+		retry: 3,
+		retryDelay: 1000,
+		...options,
+	});
+};
+
 export const useAddBookmark = (
 	options?: Omit<
 		UseMutationOptions<

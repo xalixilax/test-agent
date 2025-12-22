@@ -1,15 +1,14 @@
 import { Button } from "@design-system/ui/button";
 import { Star } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export function Rating({
-  rating,
+  rating = 0,
   setRating,
 }: {
-  rating: number | null;
+  rating?: number;
   setRating: (rating: number) => void;
 }) {
-  const [currentRating, setCurrentRating] = useState(rating || 0);
   const [hoverRating, setHoverRating] = useState(0);
 
   const getStarState = (
@@ -18,7 +17,7 @@ export function Rating({
     if (hoverRating > 0) {
       if (star <= hoverRating) {
         // Hovering on this star or before
-        if (star <= currentRating) {
+        if (star <= rating) {
           // This star is filled and we're hovering on or before it
           return "filled";
         } else {
@@ -27,7 +26,7 @@ export function Rating({
         }
       } else {
         // Not hovering on this star (beyond hover point)
-        if (star <= currentRating) {
+        if (star <= rating) {
           // This star is filled but we're hovering before it
           return "lighter";
         } else {
@@ -36,7 +35,7 @@ export function Rating({
       }
     }
     // No hover - just show current rating
-    return star <= currentRating ? "filled" : "unfilled";
+    return star <= rating ? "filled" : "unfilled";
   };
 
   return (
@@ -47,7 +46,6 @@ export function Rating({
           key={star}
           onClick={(e) => {
             e.stopPropagation();
-            setCurrentRating(star);
             setRating(star);
           }}
           onMouseEnter={() => setHoverRating(star)}

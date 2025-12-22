@@ -2,6 +2,7 @@ import { eq, and, isNull, desc } from "drizzle-orm";
 import { z } from "zod";
 import { type Bookmark, bookmarks, type Tag, tags, type BookmarkTag, bookmarkTags } from "../db/schema";
 import { createRouter, mutation, query } from "../lib/worker/router";
+import type { drizzle } from "drizzle-orm/pglite";
 
 // Input schemas
 
@@ -67,7 +68,7 @@ const syncChromeBookmarksSchema = z.object({
 });
 
 export const createAppRouter = (context: {
-	db: any;
+	db: ReturnType<typeof drizzle>;
 	log: (...args: string[]) => void;
 	error: (...args: string[]) => void;
 }) => {
@@ -76,6 +77,41 @@ export const createAppRouter = (context: {
 		getBookmarks: query({
 			handler: async (): Promise<Bookmark[]> => {
 				return await context.db.select().from(bookmarks).orderBy(bookmarks.id);
+			},
+		}),
+
+		getBookmarkById: query({
+			input: z.object({
+				chromeBookmarkId: z.string().min(1),
+			}),
+			handler: async (input) => {
+				const results = await context.db
+					.select({
+						bookmark: bookmarks,
+						tagId: bookmarkTags.tagId,
+						tagName: tags.name,
+					})
+					.from(bookmarks)
+					.leftJoin(bookmarkTags, eq(bookmarks.id, bookmarkTags.bookmarkId))
+					.leftJoin(tags, eq(bookmarkTags.tagId, tags.id))
+					.where(eq(bookmarks.chromeBookmarkId, input.chromeBookmarkId));
+
+				if (results.length === 0) {
+					throw new Error(`Bookmark with chromeBookmarkId ${input.chromeBookmarkId} not found`);
+				}
+
+				const bookmark = results[0].bookmark;
+				const tagsData = results
+					.filter((r: typeof results[0]) => r.tagId !== null)
+					.map((r: typeof results[0]) => ({ 
+						id: r.tagId!, 
+						name: r.tagName || '' 
+					}));
+
+				return {
+					...bookmark,
+					tags: tagsData,
+				};
 			},
 		}),
 

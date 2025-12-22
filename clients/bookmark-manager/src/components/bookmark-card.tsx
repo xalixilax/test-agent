@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import type { BookmarkWithTags } from "../types";
-import { useUpdateBookmark } from "../db/useBookmark";
+import { useBookmarkById, useUpdateBookmark } from "../db/useBookmark";
 import { useTags, useAddTag } from "../db/useTag";
 import { useAddBookmarkTag, useDeleteBookmarkTag } from "../db/useBookmarkTag";
 import { Button } from "@design-system/ui/button";
@@ -36,6 +36,8 @@ export function BookmarkCard({
   const addTagMutation = useAddTag();
   const addBookmarkTagMutation = useAddBookmarkTag();
   const deleteBookmarkTagMutation = useDeleteBookmarkTag();
+  const { data } = useBookmarkById(item.chromeBookmarkId ?? "");
+  console.log("BookmarkCard data:", data);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -196,7 +198,7 @@ export function BookmarkCard({
           </a>
         )}
 
-        <Rating rating={item.rating} setRating={handleUpdateRating} />
+        <Rating rating={data?.rating} setRating={handleUpdateRating} />
 
         {/* Tags using TagGroup component */}
         <div className="mb-2">
@@ -212,6 +214,7 @@ export function BookmarkCard({
 
         {/* Note */}
         <Notes
+          note={data?.note}
           editingNote={editingNote}
           noteText={noteText}
           setNoteText={setNoteText}
@@ -230,6 +233,7 @@ export function BookmarkCard({
 }
 
 type NotesProps = {
+  note?: string;
   editingNote: boolean;
   noteText: string;
   setNoteText: (text: string) => void;
@@ -239,6 +243,7 @@ type NotesProps = {
 };
 
 function Notes({
+  note,
   editingNote,
   noteText,
   setNoteText,
@@ -291,8 +296,8 @@ function Notes({
           }}
           className="cursor-pointer hover:bg-gray-50 border-2 border-dashed border-gray-300 px-2 py-2 min-h-12"
         >
-          {item.note ? (
-            <p className="text-xs font-bold">{item.note}</p>
+          {note ? (
+            <p className="text-xs font-bold">{note}</p>
           ) : (
             <p className="text-xs font-bold text-gray-400">
               Click to add note...
