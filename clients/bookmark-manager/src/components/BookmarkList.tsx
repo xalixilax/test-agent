@@ -52,6 +52,20 @@ function BookmarkList({
     <>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
         {items.map((item) => {
+          const isFolder = item.isFolder === 1;
+
+          // Folder card
+          if (isFolder) {
+            return (
+              <Folder
+                key={item.chromeBookmarkId}
+                item={item}
+                onNavigateToFolder={onNavigateToFolder}
+                onDelete={onDelete}
+              />
+            );
+          }
+
           // Regular bookmark card
           return (
             <BookmarkCard

@@ -19,8 +19,6 @@ export type BreadcrumbItem = {
 // Database types
 export type DbBookmark = {
   chromeBookmarkId: string;
-  title: string | null;
-  url: string | null;
   note: string | null;
   rating: number | null;
   screenshot: string | null;

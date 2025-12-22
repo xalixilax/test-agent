@@ -9,8 +9,6 @@ import type { drizzle } from "drizzle-orm/pglite";
 // Bookmark schemas
 const addBookmarkSchema = z.object({
 	chromeBookmarkId: z.string().min(1, "Chrome bookmark ID is required"),
-	title: z.string().min(1, "Title is required").optional(),
-	url: z.string().url("Valid URL is required").optional(),
 	note: z.string().optional(),
 	rating: z.number().min(0).max(5).optional(),
 	screenshot: z.string().optional(),
@@ -18,8 +16,6 @@ const addBookmarkSchema = z.object({
 
 const updateBookmarkSchema = z.object({
 	chromeBookmarkId: z.string().min(1, "Chrome bookmark ID is required"),
-	title: z.string().min(1, "Title is required").optional(),
-	url: z.string().url("Valid URL is required").optional(),
 	note: z.string().optional().nullable(),
 	rating: z.number().min(0).max(5).optional().nullable(),
 	screenshot: z.string().optional().nullable(),
@@ -186,28 +182,41 @@ export const createAppRouter = (context: {
 					throw new Error("No fields to update");
 				}
 
-				const [updatedBookmark] = await context.db
-					.update(bookmarks)
-					.set(updateData)
-					.where(eq(bookmarks.chromeBookmarkId, chromeBookmarkId))
+			// Check if bookmark exists
+			const existing = await context.db
+				.select()
+				.from(bookmarks)
+				.where(eq(bookmarks.chromeBookmarkId, chromeBookmarkId))
+				.limit(1);
+
+			if (existing.length === 0) {
+				// Create new bookmark if it doesn't exist
+				const [newBookmark] = await context.db
+					.insert(bookmarks)
+					.values({
+						chromeBookmarkId,
+						...updateData,
+					})
 					.returning();
+				
+				console.log("Created new bookmark:", newBookmark); // --- IGNORE ---
+				return newBookmark;
+			}
 
-					console.log("Updated bookmark:", updatedBookmark); // --- IGNORE ---
+			// Update existing bookmark
+			const [updatedBookmark] = await context.db
+				.update(bookmarks)
+				.set(updateData)
+				.where(eq(bookmarks.chromeBookmarkId, chromeBookmarkId))
+				.returning();
 
-				return updatedBookmark;
-			},
-		}),
+			console.log("Updated bookmark:", updatedBookmark); // --- IGNORE ---
 
-		deleteBookmark: mutation({
-			input: deleteBookmarkSchema,
-			handler: async (input): Promise<{ chromeBookmarkId: string }> => {
-				await context.db.delete(bookmarks).where(eq(bookmarks.chromeBookmarkId, input.chromeBookmarkId));
-				return { chromeBookmarkId: input.chromeBookmarkId };
-			},
-		}),
+		return updatedBookmark;
+	},
+}),
 
-		// Tag queries and mutations
-		getTags: query({
+deleteBookmark: mutation({
 			handler: async (): Promise<Tag[]> => {
 				return await context.db.select().from(tags).orderBy(tags.id);
 			},

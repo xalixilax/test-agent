@@ -2,6 +2,7 @@ import { integer, pgTable, serial, text, real, primaryKey, pgSchema } from "driz
 
 const customSchema = pgSchema('custom')
 
+// DO NOT ADD URL, TITLE, ISFOLDER, PARENTID HERE - these are stored in Chrome's own bookmark storage
 export const bookmarks = pgTable("bookmarks", {
 	chromeBookmarkId: text("chrome_bookmark_id").primaryKey(),
 	note: text("note"),
