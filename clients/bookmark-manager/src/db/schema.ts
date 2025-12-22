@@ -3,8 +3,7 @@ import { integer, pgTable, serial, text, real, primaryKey, pgSchema } from "driz
 const customSchema = pgSchema('custom')
 
 export const bookmarks = pgTable("bookmarks", {
-	id: serial("id").primaryKey(),
-	chromeBookmarkId: text("chrome_bookmark_id").unique(),
+	chromeBookmarkId: text("chrome_bookmark_id").primaryKey(),
 	note: text("note"),
 	rating: real("rating"), // 0-5 star rating
 	screenshot: text("screenshot"), // base64 or URL to screenshot
@@ -16,7 +15,7 @@ export const tags = pgTable("tags", {
 });
 
 export const bookmarkTags = pgTable("bookmark_tags", {
-	bookmarkId: integer("bookmark_id").notNull().references(() => bookmarks.id, { onDelete: "cascade" }),
+	bookmarkId: text("bookmark_id").notNull().references(() => bookmarks.chromeBookmarkId, { onDelete: "cascade" }),
 	tagId: integer("tag_id").notNull().references(() => tags.id, { onDelete: "cascade" }),
 }, (table) => ([
 	primaryKey({ columns: [table.bookmarkId, table.tagId] }),

@@ -14,13 +14,13 @@ function PopupContent() {
   const filteredBookmarks = searchTerm
     ? allBookmarks.filter(
         (bookmark) =>
-          !bookmark.isFolder &&
-          (bookmark.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (bookmark.url &&
-              bookmark.url.toLowerCase().includes(searchTerm.toLowerCase())) ||
-            bookmark.tags?.some((tag) =>
-              tag.name.toLowerCase().includes(searchTerm.toLowerCase())
-            ))
+          (bookmark.title &&
+            bookmark.title.toLowerCase().includes(searchTerm.toLowerCase())) ||
+          (bookmark.url &&
+            bookmark.url.toLowerCase().includes(searchTerm.toLowerCase())) ||
+          bookmark.tags?.some((tag) =>
+            tag.name.toLowerCase().includes(searchTerm.toLowerCase())
+          )
       )
     : [];
 
@@ -73,7 +73,7 @@ function PopupContent() {
             ) : (
               filteredBookmarks.slice(0, 10).map((bookmark) => (
                 <Button
-                  key={bookmark.id}
+                  key={bookmark.chromeBookmarkId}
                   onClick={() =>
                     bookmark.url && handleOpenBookmark(bookmark.url)
                   }

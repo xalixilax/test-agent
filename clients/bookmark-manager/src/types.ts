@@ -18,16 +18,12 @@ export type BreadcrumbItem = {
 
 // Database types
 export type DbBookmark = {
-  id: number;
-  chromeBookmarkId: string | null;
-  title: string;
+  chromeBookmarkId: string;
+  title: string | null;
   url: string | null;
   note: string | null;
   rating: number | null;
-  dateAdded: Date | null;
   screenshot: string | null;
-  parentId: number | null;
-  isFolder: number; // 0 = bookmark, 1 = folder
 }
 
 export type DbTag = {

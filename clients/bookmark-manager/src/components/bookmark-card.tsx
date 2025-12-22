@@ -11,9 +11,9 @@ import { TagGroup } from "./tag-group";
 
 interface BookmarkCardProps {
   item: BookmarkWithTags;
-  onDelete: (id: number) => void;
-  onCaptureScreenshot: (id: number, url: string) => void;
-  onDeleteScreenshot: (id: number) => void;
+  onDelete: (chromeBookmarkId: string) => void;
+  onCaptureScreenshot: (chromeBookmarkId: string, url: string) => void;
+  onDeleteScreenshot: (chromeBookmarkId: string) => void;
   onOpenBookmark: (url: string) => void;
   onViewScreenshot: (screenshot: string) => void;
   formatDate: (timestamp?: Date | null) => string;
@@ -28,7 +28,7 @@ export function BookmarkCard({
   onViewScreenshot,
   formatDate,
 }: BookmarkCardProps) {
-  const [openMenuId, setOpenMenuId] = useState<number | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [editingNote, setEditingNote] = useState(false);
   const [noteText, setNoteText] = useState("");
 
@@ -48,22 +48,31 @@ export function BookmarkCard({
   }, [openMenuId]);
 
   const handleSaveNote = () => {
-    updateBookmarkMutation.mutate({ id: item.id, note: noteText });
+    updateBookmarkMutation.mutate({
+      chromeBookmarkId: item.chromeBookmarkId,
+      note: noteText,
+    });
     setEditingNote(false);
     setNoteText("");
   };
 
   const handleUpdateRating = (rating: number) => {
     console.log("Updating rating to:", rating);
-    updateBookmarkMutation.mutate({ id: item.id, rating });
+    updateBookmarkMutation.mutate({
+      chromeBookmarkId: item.chromeBookmarkId,
+      rating,
+    });
   };
 
   const handleTagAdd = (tagId: number) => {
-    addBookmarkTagMutation.mutate({ bookmarkId: item.id, tagId });
+    addBookmarkTagMutation.mutate({ bookmarkId: item.chromeBookmarkId, tagId });
   };
 
   const handleTagRemove = (tagId: number) => {
-    deleteBookmarkTagMutation.mutate({ bookmarkId: item.id, tagId });
+    deleteBookmarkTagMutation.mutate({
+      bookmarkId: item.chromeBookmarkId,
+      tagId,
+    });
   };
 
   const handleNewTagCreate = (tagName: string) => {
@@ -72,7 +81,7 @@ export function BookmarkCard({
       {
         onSuccess: (newTag: any) => {
           addBookmarkTagMutation.mutate({
-            bookmarkId: item.id,
+            bookmarkId: item.chromeBookmarkId,
             tagId: newTag.id,
           });
         },
@@ -91,19 +100,23 @@ export function BookmarkCard({
           <Button
             onClick={(e) => {
               e.stopPropagation();
-              setOpenMenuId(openMenuId === item.id ? null : item.id);
+              setOpenMenuId(
+                openMenuId === item.chromeBookmarkId
+                  ? null
+                  : item.chromeBookmarkId
+              );
             }}
             className="flex-col gap-1"
             variant="default"
             size="icon"
             aria-label="Bookmark actions menu"
-            aria-expanded={openMenuId === item.id}
+            aria-expanded={openMenuId === item.chromeBookmarkId}
             aria-haspopup="true"
           >
             <EllipsisVertical />
           </Button>
 
-          {openMenuId === item.id && (
+          {openMenuId === item.chromeBookmarkId && (
             <div
               className="absolute right-0 mt-1 w-40 border-3 border-black z-10 shadow-brutal"
               style={{ background: "var(--color-white)" }}
@@ -114,7 +127,7 @@ export function BookmarkCard({
                 <Button
                   onClick={(e) => {
                     e.stopPropagation();
-                    onCaptureScreenshot(item.id, item.url!);
+                    onCaptureScreenshot(item.chromeBookmarkId, item.url!);
                     setOpenMenuId(null);
                   }}
                   className="w-full justify-start gap-2 border-b-2 rounded-none"
@@ -129,7 +142,7 @@ export function BookmarkCard({
                 <Button
                   onClick={(e) => {
                     e.stopPropagation();
-                    onDeleteScreenshot(item.id);
+                    onDeleteScreenshot(item.chromeBookmarkId);
                     setOpenMenuId(null);
                   }}
                   className="w-full justify-start gap-2 border-b-2 rounded-none"
@@ -143,7 +156,7 @@ export function BookmarkCard({
               <Button
                 onClick={(e) => {
                   e.stopPropagation();
-                  onDelete(item.id);
+                  onDelete(item.chromeBookmarkId);
                   setOpenMenuId(null);
                 }}
                 className="w-full justify-start gap-2 hover:bg-red-100 rounded-none"
@@ -177,9 +190,9 @@ export function BookmarkCard({
         <h3
           className="font-black text-sm sm:text-base mb-1 cursor-pointer hover:underline pr-8"
           onClick={() => item.url && onOpenBookmark(item.url)}
-          title={item.title}
+          title={item.title || undefined}
         >
-          {item.title.toUpperCase()}
+          {(item.title || "Untitled").toUpperCase()}
         </h3>
 
         {/* URL */}
@@ -198,7 +211,10 @@ export function BookmarkCard({
           </a>
         )}
 
-        <Rating rating={data?.rating} setRating={handleUpdateRating} />
+        <Rating
+          rating={data?.rating ?? undefined}
+          setRating={handleUpdateRating}
+        />
 
         {/* Tags using TagGroup component */}
         <div className="mb-2">
@@ -214,7 +230,7 @@ export function BookmarkCard({
 
         {/* Note */}
         <Notes
-          note={data?.note}
+          note={data?.note ?? undefined}
           editingNote={editingNote}
           noteText={noteText}
           setNoteText={setNoteText}
@@ -223,10 +239,7 @@ export function BookmarkCard({
           item={item}
         />
 
-        {/* Date */}
-        <p className="text-xs font-bold mt-auto" style={{ opacity: 0.6 }}>
-          {formatDate(item.dateAdded)}
-        </p>
+        {/* Date - removed as not in schema */}
       </div>
     </Card>
   );

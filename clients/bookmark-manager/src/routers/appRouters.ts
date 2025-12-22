@@ -8,17 +8,16 @@ import type { drizzle } from "drizzle-orm/pglite";
 
 // Bookmark schemas
 const addBookmarkSchema = z.object({
-	title: z.string().min(1, "Title is required"),
+	chromeBookmarkId: z.string().min(1, "Chrome bookmark ID is required"),
+	title: z.string().min(1, "Title is required").optional(),
 	url: z.string().url("Valid URL is required").optional(),
 	note: z.string().optional(),
 	rating: z.number().min(0).max(5).optional(),
 	screenshot: z.string().optional(),
-	parentId: z.number().int().nullable().optional(),
-	isFolder: z.number().int().optional(), // 0 = bookmark, 1 = folder
 });
 
 const updateBookmarkSchema = z.object({
-	id: z.number().int().positive(),
+	chromeBookmarkId: z.string().min(1, "Chrome bookmark ID is required"),
 	title: z.string().min(1, "Title is required").optional(),
 	url: z.string().url("Valid URL is required").optional(),
 	note: z.string().optional().nullable(),
@@ -27,7 +26,7 @@ const updateBookmarkSchema = z.object({
 });
 
 const deleteBookmarkSchema = z.object({
-	id: z.number().int().positive(),
+	chromeBookmarkId: z.string().min(1, "Chrome bookmark ID is required"),
 });
 
 // Tag schemas
@@ -46,12 +45,12 @@ const deleteTagSchema = z.object({
 
 // BookmarkTag schemas
 const addBookmarkTagSchema = z.object({
-	bookmarkId: z.number().int().positive(),
+	bookmarkId: z.string().min(1, "Chrome bookmark ID is required"),
 	tagId: z.number().int().positive(),
 });
 
 const deleteBookmarkTagSchema = z.object({
-	bookmarkId: z.number().int().positive(),
+	bookmarkId: z.string().min(1, "Chrome bookmark ID is required"),
 	tagId: z.number().int().positive(),
 });
 
@@ -76,7 +75,7 @@ export const createAppRouter = (context: {
 		// Bookmark queries and mutations
 		getBookmarks: query({
 			handler: async (): Promise<Bookmark[]> => {
-				return await context.db.select().from(bookmarks).orderBy(bookmarks.id);
+				return await context.db.select().from(bookmarks).orderBy(bookmarks.chromeBookmarkId);
 			},
 		}),
 
@@ -92,7 +91,7 @@ export const createAppRouter = (context: {
 						tagName: tags.name,
 					})
 					.from(bookmarks)
-					.leftJoin(bookmarkTags, eq(bookmarks.id, bookmarkTags.bookmarkId))
+					.leftJoin(bookmarkTags, eq(bookmarks.chromeBookmarkId, bookmarkTags.bookmarkId))
 					.leftJoin(tags, eq(bookmarkTags.tagId, tags.id))
 					.where(eq(bookmarks.chromeBookmarkId, input.chromeBookmarkId));
 
@@ -118,7 +117,7 @@ export const createAppRouter = (context: {
 		getBookmarksWithTags: query({
 			handler: async () => {
 				// Get all bookmarks for search purposes
-				const allBookmarks = await context.db.select().from(bookmarks).orderBy(bookmarks.id);
+				const allBookmarks = await context.db.select().from(bookmarks).orderBy(bookmarks.chromeBookmarkId);
 
 				// Get all bookmark-tag relationships
 				const allBookmarkTags = await context.db
@@ -134,7 +133,7 @@ export const createAppRouter = (context: {
 				return allBookmarks.map((bookmark: Bookmark) => ({
 					...bookmark,
 					tags: allBookmarkTags
-						.filter((bt: any) => bt.bookmarkId === bookmark.id)
+						.filter((bt: any) => bt.bookmarkId === bookmark.chromeBookmarkId)
 						.map((bt: any) => ({ id: bt.tagId, name: bt.tagName || '' })),
 				}));
 			},
@@ -142,24 +141,14 @@ export const createAppRouter = (context: {
 
 		getBookmarksByParent: query({
 			input: z.object({
-				parentId: z.number().int().nullable(),
+				parentId: z.string().nullable(),
 			}),
 			handler: async (input) => {
-				// Get bookmarks for a specific folder (or root if parentId is null)
-				let query = context.db.select().from(bookmarks);
-
-				if (input.parentId === null) {
-					// Get root level items (where parentId is null)
-					query = query.where(isNull(bookmarks.parentId)) as any;
-				} else {
-					// Get items in specific folder
-					query = query.where(eq(bookmarks.parentId, input.parentId)) as any;
-				}
-
-				const folderBookmarks = await query.orderBy(desc(bookmarks.isFolder), bookmarks.id);
+				// Get all bookmarks - folder filtering will be done by Chrome API
+				const allBookmarks = await context.db.select().from(bookmarks).orderBy(bookmarks.chromeBookmarkId);
 
 				// Get all bookmark-tag relationships for these bookmarks
-				const bookmarkIds = folderBookmarks.map((b: Bookmark) => b.id);
+				const bookmarkIds = allBookmarks.map((b: Bookmark) => b.chromeBookmarkId);
 				const allBookmarkTags = bookmarkIds.length > 0 ? await context.db
 					.select({
 						bookmarkId: bookmarkTags.bookmarkId,
@@ -170,10 +159,10 @@ export const createAppRouter = (context: {
 					.leftJoin(tags, eq(bookmarkTags.tagId, tags.id)) : [];
 
 				// Combine bookmarks with their tags
-				return folderBookmarks.map((bookmark: Bookmark) => ({
+				return allBookmarks.map((bookmark: Bookmark) => ({
 					...bookmark,
 					tags: allBookmarkTags
-						.filter((bt: any) => bt.bookmarkId === bookmark.id)
+						.filter((bt: any) => bt.bookmarkId === bookmark.chromeBookmarkId)
 						.map((bt: any) => ({ id: bt.tagId, name: bt.tagName || '' })),
 				}));
 			},
@@ -191,7 +180,7 @@ export const createAppRouter = (context: {
 		updateBookmark: mutation({
 			input: updateBookmarkSchema,
 			handler: async (input): Promise<Bookmark> => {
-				const { id, ...updateData } = input;
+				const { chromeBookmarkId, ...updateData } = input;
 
 				if (Object.keys(updateData).length === 0) {
 					throw new Error("No fields to update");
@@ -200,7 +189,7 @@ export const createAppRouter = (context: {
 				const [updatedBookmark] = await context.db
 					.update(bookmarks)
 					.set(updateData)
-					.where(eq(bookmarks.id, id))
+					.where(eq(bookmarks.chromeBookmarkId, chromeBookmarkId))
 					.returning();
 
 					console.log("Updated bookmark:", updatedBookmark); // --- IGNORE ---
@@ -211,9 +200,9 @@ export const createAppRouter = (context: {
 
 		deleteBookmark: mutation({
 			input: deleteBookmarkSchema,
-			handler: async (input): Promise<{ id: number }> => {
-				await context.db.delete(bookmarks).where(eq(bookmarks.id, input.id));
-				return { id: input.id };
+			handler: async (input): Promise<{ chromeBookmarkId: string }> => {
+				await context.db.delete(bookmarks).where(eq(bookmarks.chromeBookmarkId, input.chromeBookmarkId));
+				return { chromeBookmarkId: input.chromeBookmarkId };
 			},
 		}),
 
@@ -276,7 +265,7 @@ export const createAppRouter = (context: {
 
 		deleteBookmarkTag: mutation({
 			input: deleteBookmarkTagSchema,
-			handler: async (input): Promise<{ bookmarkId: number; tagId: number }> => {
+			handler: async (input): Promise<{ bookmarkId: string; tagId: number }> => {
 				await context.db
 					.delete(bookmarkTags)
 					.where(

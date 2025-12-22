@@ -42,7 +42,7 @@ export const useBookmarksWithTags = (
 };
 
 export const useBookmarksByParent = (
-	parentId: number | null,
+	parentId: string | null,
 	options?: Omit<
 		UseQueryOptions<InferOutput<AppRouter["getBookmarksByParent"]>, Error>,
 		"queryKey" | "queryFn"
@@ -116,6 +116,7 @@ export const useUpdateBookmark = (
 			void queryClient.invalidateQueries({ queryKey: ["getBookmarks"] });
 			void queryClient.invalidateQueries({ queryKey: ["getBookmarksWithTags"] });
 			void queryClient.invalidateQueries({ queryKey: ["getBookmarksByParent"] });
+			void queryClient.invalidateQueries({ queryKey: ["getBookmarkById"] });
 			options?.onSuccess?.(...args);
 		},
 		...options,

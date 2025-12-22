@@ -6,10 +6,10 @@ import { BookmarkCard } from "./bookmark-card";
 
 interface BookmarkListProps {
   items: BookmarkWithTags[];
-  onDelete: (id: number) => void;
-  onCaptureScreenshot: (id: number, url: string) => void;
-  onDeleteScreenshot: (id: number) => void;
-  onNavigateToFolder: (folderId: number, folderTitle: string) => void;
+  onDelete: (chromeBookmarkId: string) => void;
+  onCaptureScreenshot: (chromeBookmarkId: string, url: string) => void;
+  onDeleteScreenshot: (chromeBookmarkId: string) => void;
+  onNavigateToFolder: (chromeBookmarkId: string, folderTitle: string) => void;
   isSearching: boolean;
 }
 
@@ -52,24 +52,10 @@ function BookmarkList({
     <>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
         {items.map((item) => {
-          const isFolder = item.isFolder === 1;
-
-          // Folder card
-          if (isFolder) {
-            return (
-              <Folder
-                key={item.id}
-                item={item}
-                onNavigateToFolder={onNavigateToFolder}
-                onDelete={onDelete}
-              />
-            );
-          }
-
           // Regular bookmark card
           return (
             <BookmarkCard
-              key={item.id}
+              key={item.chromeBookmarkId}
               item={item}
               onDelete={onDelete}
               onCaptureScreenshot={onCaptureScreenshot}

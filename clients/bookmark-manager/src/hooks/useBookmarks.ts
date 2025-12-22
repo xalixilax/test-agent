@@ -2,80 +2,47 @@ import { useCallback } from "react";
 import { useBookmarksWithTags, useBookmarksByParent, useAddBookmark, useUpdateBookmark, useDeleteBookmark } from "../db/useBookmark";
 import type { BookmarkWithTags } from "../types";
 
-export const useBookmarks = (currentFolderId: number | null = null) => {
+export const useBookmarks = (currentFolderId: string | null = null) => {
   const { data: allBookmarks = [], isLoading: allLoading } = useBookmarksWithTags();
   const { data: folderBookmarks = [], isLoading: folderLoading, refetch: loadBookmarks } = useBookmarksByParent(currentFolderId);
   const addBookmarkMutation = useAddBookmark();
   const updateBookmarkMutation = useUpdateBookmark();
   const deleteBookmarkMutation = useDeleteBookmark();
 
-  const addBookmark = useCallback(async (title: string, url: string, parentId: number | null = null, isFolder: number = 0) => {
-    // Add to database first
+  const addBookmark = useCallback(async (chromeBookmarkId: string, title?: string, url?: string) => {
+    // Add to database - Chrome bookmark already exists
     const result = await addBookmarkMutation.mutateAsync({
+      chromeBookmarkId,
       title,
-      url: isFolder ? undefined : url,
-      parentId,
-      isFolder,
+      url,
     });
 
-    // Also add to Chrome bookmarks if available
-    if (typeof chrome !== "undefined" && chrome.bookmarks) {
-      try {
-        // Find the Chrome parent ID if parentId is set
-        let chromeParentId: string | undefined;
-        if (parentId !== null) {
-          const parentBookmark = [...allBookmarks, ...folderBookmarks].find(b => b.id === parentId);
-          chromeParentId = parentBookmark?.chromeBookmarkId || undefined;
-        }
-
-        if (isFolder) {
-          // Create folder in Chrome
-          await chrome.bookmarks.create({
-            title,
-            parentId: chromeParentId,
-          });
-        } else {
-          // Create bookmark in Chrome
-          await chrome.bookmarks.create({
-            title,
-            url,
-            parentId: chromeParentId,
-          });
-        }
-      } catch (error) {
-        console.error('Failed to add to Chrome bookmarks:', error);
-      }
-    }
-
     return result;
-  }, [addBookmarkMutation, allBookmarks, folderBookmarks]);
+  }, [addBookmarkMutation]);
 
   const updateBookmark = useCallback((
-    id: number,
+    chromeBookmarkId: string,
     updates: { note?: string; rating?: number; screenshot?: string }
   ) => {
     updateBookmarkMutation.mutate({
-      id,
+      chromeBookmarkId,
       ...updates,
     });
   }, [updateBookmarkMutation]);
 
-  const deleteBookmark = useCallback(async (id: number) => {
-    // Find the bookmark to get Chrome ID
-    const bookmark = [...allBookmarks, ...folderBookmarks].find(b => b.id === id);
-    
+  const deleteBookmark = useCallback(async (chromeBookmarkId: string) => {
     // Delete from database
-    await deleteBookmarkMutation.mutateAsync({ id });
+    await deleteBookmarkMutation.mutateAsync({ chromeBookmarkId });
 
     // Also delete from Chrome bookmarks if available
-    if (bookmark?.chromeBookmarkId && typeof chrome !== "undefined" && chrome.bookmarks) {
+    if (typeof chrome !== "undefined" && chrome.bookmarks) {
       try {
-        await chrome.bookmarks.remove(bookmark.chromeBookmarkId);
+        await chrome.bookmarks.remove(chromeBookmarkId);
       } catch (error) {
         console.error('Failed to delete from Chrome bookmarks:', error);
       }
     }
-  }, [deleteBookmarkMutation, allBookmarks, folderBookmarks]);
+  }, [deleteBookmarkMutation]);
 
   return {
     bookmarks: folderBookmarks as BookmarkWithTags[],
