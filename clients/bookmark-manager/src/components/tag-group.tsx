@@ -64,7 +64,6 @@ export function TagGroup({
       <ComboboxChips className={"border-0"}>
         <ComboboxValue>
           {(values: { value: string; label: string }[]) => {
-            console.log("ComboboxValue value:", values);
             return (
               <>
                 {values?.map((item) => (

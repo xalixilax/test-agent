@@ -103,9 +103,9 @@ export const createAppRouter = (context: {
 				const bookmark = results[0].bookmark;
 				const tagsData = results
 					.filter((r: typeof results[0]) => r.tagId !== null)
-					.map((r: typeof results[0]) => ({ 
-						id: r.tagId!, 
-						name: r.tagName || '' 
+					.map((r: typeof results[0]) => ({
+						id: r.tagId!,
+						name: r.tagName || ''
 					}));
 
 				return {
@@ -115,69 +115,69 @@ export const createAppRouter = (context: {
 			},
 		}),
 
-	getBookmarksWithTags: query({
-		handler: async () => {
-			// Get all bookmarks for search purposes
-			const allBookmarks = await context.db.select().from(bookmarks).orderBy(bookmarks.id);
-			
-			// Get all bookmark-tag relationships
-			const allBookmarkTags = await context.db
-				.select({
-					bookmarkId: bookmarkTags.bookmarkId,
-					tagId: bookmarkTags.tagId,
-					tagName: tags.name,
-				})
-				.from(bookmarkTags)
-				.leftJoin(tags, eq(bookmarkTags.tagId, tags.id));
+		getBookmarksWithTags: query({
+			handler: async () => {
+				// Get all bookmarks for search purposes
+				const allBookmarks = await context.db.select().from(bookmarks).orderBy(bookmarks.id);
 
-			// Combine bookmarks with their tags
-			return allBookmarks.map((bookmark: Bookmark) => ({
-				...bookmark,
-				tags: allBookmarkTags
-					.filter((bt: any) => bt.bookmarkId === bookmark.id)
-					.map((bt: any) => ({ id: bt.tagId, name: bt.tagName || '' })),
-			}));
-		},
-	}),
+				// Get all bookmark-tag relationships
+				const allBookmarkTags = await context.db
+					.select({
+						bookmarkId: bookmarkTags.bookmarkId,
+						tagId: bookmarkTags.tagId,
+						tagName: tags.name,
+					})
+					.from(bookmarkTags)
+					.leftJoin(tags, eq(bookmarkTags.tagId, tags.id));
 
-	getBookmarksByParent: query({
-		input: z.object({
-			parentId: z.number().int().nullable(),
+				// Combine bookmarks with their tags
+				return allBookmarks.map((bookmark: Bookmark) => ({
+					...bookmark,
+					tags: allBookmarkTags
+						.filter((bt: any) => bt.bookmarkId === bookmark.id)
+						.map((bt: any) => ({ id: bt.tagId, name: bt.tagName || '' })),
+				}));
+			},
 		}),
-		handler: async (input) => {
-			// Get bookmarks for a specific folder (or root if parentId is null)
-			let query = context.db.select().from(bookmarks);
-			
-			if (input.parentId === null) {
-				// Get root level items (where parentId is null)
-				query = query.where(isNull(bookmarks.parentId)) as any;
-			} else {
-				// Get items in specific folder
-				query = query.where(eq(bookmarks.parentId, input.parentId)) as any;
-			}
-			
-			const folderBookmarks = await query.orderBy(desc(bookmarks.isFolder), bookmarks.id);
-			
-			// Get all bookmark-tag relationships for these bookmarks
-			const bookmarkIds = folderBookmarks.map((b: Bookmark) => b.id);
-			const allBookmarkTags = bookmarkIds.length > 0 ? await context.db
-				.select({
-					bookmarkId: bookmarkTags.bookmarkId,
-					tagId: bookmarkTags.tagId,
-					tagName: tags.name,
-				})
-				.from(bookmarkTags)
-				.leftJoin(tags, eq(bookmarkTags.tagId, tags.id)) : [];
 
-			// Combine bookmarks with their tags
-			return folderBookmarks.map((bookmark: Bookmark) => ({
-				...bookmark,
-				tags: allBookmarkTags
-					.filter((bt: any) => bt.bookmarkId === bookmark.id)
-					.map((bt: any) => ({ id: bt.tagId, name: bt.tagName || '' })),
-			}));
-		},
-	}),		addBookmark: mutation({
+		getBookmarksByParent: query({
+			input: z.object({
+				parentId: z.number().int().nullable(),
+			}),
+			handler: async (input) => {
+				// Get bookmarks for a specific folder (or root if parentId is null)
+				let query = context.db.select().from(bookmarks);
+
+				if (input.parentId === null) {
+					// Get root level items (where parentId is null)
+					query = query.where(isNull(bookmarks.parentId)) as any;
+				} else {
+					// Get items in specific folder
+					query = query.where(eq(bookmarks.parentId, input.parentId)) as any;
+				}
+
+				const folderBookmarks = await query.orderBy(desc(bookmarks.isFolder), bookmarks.id);
+
+				// Get all bookmark-tag relationships for these bookmarks
+				const bookmarkIds = folderBookmarks.map((b: Bookmark) => b.id);
+				const allBookmarkTags = bookmarkIds.length > 0 ? await context.db
+					.select({
+						bookmarkId: bookmarkTags.bookmarkId,
+						tagId: bookmarkTags.tagId,
+						tagName: tags.name,
+					})
+					.from(bookmarkTags)
+					.leftJoin(tags, eq(bookmarkTags.tagId, tags.id)) : [];
+
+				// Combine bookmarks with their tags
+				return folderBookmarks.map((bookmark: Bookmark) => ({
+					...bookmark,
+					tags: allBookmarkTags
+						.filter((bt: any) => bt.bookmarkId === bookmark.id)
+						.map((bt: any) => ({ id: bt.tagId, name: bt.tagName || '' })),
+				}));
+			},
+		}), addBookmark: mutation({
 			input: addBookmarkSchema,
 			handler: async (input): Promise<Bookmark> => {
 				const [newBookmark] = await context.db
@@ -202,6 +202,8 @@ export const createAppRouter = (context: {
 					.set(updateData)
 					.where(eq(bookmarks.id, id))
 					.returning();
+
+					console.log("Updated bookmark:", updatedBookmark); // --- IGNORE ---
 
 				return updatedBookmark;
 			},
@@ -294,10 +296,6 @@ export const createAppRouter = (context: {
 				let synced = 0;
 				let updated = 0;
 
-				// Create a map of Chrome bookmark IDs to database IDs
-				const chromeIdToDbId = new Map<string, number>();
-
-				// First pass: Create/update all items without setting parentId
 				for (const chromeBookmark of input.bookmarks) {
 					// Check if bookmark already exists by Chrome bookmark ID
 					const existing = await context.db
@@ -309,66 +307,29 @@ export const createAppRouter = (context: {
 					if (existing.length > 0) {
 						// Update existing bookmark
 						const existingBookmark = existing[0];
-						const hasChanges = 
-							existingBookmark.title !== chromeBookmark.title || 
-							existingBookmark.url !== chromeBookmark.url ||
-							existingBookmark.isFolder !== chromeBookmark.isFolder ||
+						const hasChanges =
 							(chromeBookmark.screenshot && existingBookmark.screenshot !== chromeBookmark.screenshot);
-						
+
 						if (hasChanges) {
 							await context.db
 								.update(bookmarks)
 								.set({
-									title: chromeBookmark.title,
-									url: chromeBookmark.url || null,
-									isFolder: chromeBookmark.isFolder,
 									screenshot: chromeBookmark.screenshot || existingBookmark.screenshot,
 								})
 								.where(eq(bookmarks.chromeBookmarkId, chromeBookmark.chromeBookmarkId));
 							updated++;
 						}
-						
-						chromeIdToDbId.set(chromeBookmark.chromeBookmarkId, existingBookmark.id);
 					} else {
-						// Insert new bookmark (parentId will be set in second pass)
-						const [newBookmark] = await context.db
+						// Insert new bookmark
+						await context.db
 							.insert(bookmarks)
 							.values({
 								chromeBookmarkId: chromeBookmark.chromeBookmarkId,
-								title: chromeBookmark.title,
-								url: chromeBookmark.url || null,
-								isFolder: chromeBookmark.isFolder,
-								screenshot: chromeBookmark.screenshot,
-								parentId: null, // Will be updated in second pass
+								screenshot: chromeBookmark.screenshot || null,
 							})
 							.returning();
-						
-						chromeIdToDbId.set(chromeBookmark.chromeBookmarkId, newBookmark.id);
-						synced++;
-					}
-				}
 
-				// Second pass: Update parentId relationships
-				for (const chromeBookmark of input.bookmarks) {
-					if (chromeBookmark.chromeParentId) {
-						const dbId = chromeIdToDbId.get(chromeBookmark.chromeBookmarkId);
-						const parentDbId = chromeIdToDbId.get(chromeBookmark.chromeParentId);
-						
-						if (dbId && parentDbId) {
-							await context.db
-								.update(bookmarks)
-								.set({ parentId: parentDbId })
-								.where(eq(bookmarks.id, dbId));
-						}
-					} else {
-						// No parent = root level
-						const dbId = chromeIdToDbId.get(chromeBookmark.chromeBookmarkId);
-						if (dbId) {
-							await context.db
-								.update(bookmarks)
-								.set({ parentId: null })
-								.where(eq(bookmarks.id, dbId));
-						}
+						synced++;
 					}
 				}
 

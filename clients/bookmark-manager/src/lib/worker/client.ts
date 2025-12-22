@@ -38,7 +38,7 @@ export class WorkerClient<TRouter extends Record<string, Procedure<any, any>>> {
 		if (response.success) {
 			pending.resolve(response.data);
 		} else {
-			const error = new Error(response.error || "Unknown error");
+			const error = new Error(response.error);
 			pending.reject(error);
 			this.notifyError(error);
 		}
@@ -80,7 +80,7 @@ export class WorkerClient<TRouter extends Record<string, Procedure<any, any>>> {
 
 		return new Promise((resolve, reject) => {
 			this.pendingRequests.set(id, { resolve, reject });
-			
+
 			// Use chrome.runtime.sendMessage instead of worker.postMessage
 			chrome.runtime.sendMessage(request, (response: WorkerResponse) => {
 				if (chrome.runtime.lastError) {
@@ -88,7 +88,7 @@ export class WorkerClient<TRouter extends Record<string, Procedure<any, any>>> {
 					this.pendingRequests.delete(id);
 					return;
 				}
-				
+
 				this.handleMessage(response);
 			});
 		});
@@ -119,16 +119,16 @@ type RouteHelper<
 > = {
 	// biome-ignore lint/suspicious/noConfusingVoidType: void is used to detect procedures without input
 	query: [InferInput<TRouter[TRoute]>] extends [void]
-		? (input?: undefined) => Promise<InferOutput<TRouter[TRoute]>>
-		: (
-				input: InferInput<TRouter[TRoute]>,
-			) => Promise<InferOutput<TRouter[TRoute]>>;
+	? (input?: undefined) => Promise<InferOutput<TRouter[TRoute]>>
+	: (
+		input: InferInput<TRouter[TRoute]>,
+	) => Promise<InferOutput<TRouter[TRoute]>>;
 	// biome-ignore lint/suspicious/noConfusingVoidType: void is used to detect procedures without input
-	 mutate: [InferInput<TRouter[TRoute]>] extends [void]
-		? (input?: undefined) => Promise<InferOutput<TRouter[TRoute]>>
-		: (
-				input: InferInput<TRouter[TRoute]>,
-			) => Promise<InferOutput<TRouter[TRoute]>>;
+	mutate: [InferInput<TRouter[TRoute]>] extends [void]
+	? (input?: undefined) => Promise<InferOutput<TRouter[TRoute]>>
+	: (
+		input: InferInput<TRouter[TRoute]>,
+	) => Promise<InferOutput<TRouter[TRoute]>>;
 };
 
 export type EnhancedWorkerClient<

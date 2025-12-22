@@ -37,7 +37,6 @@ export function BookmarkCard({
   const addBookmarkTagMutation = useAddBookmarkTag();
   const deleteBookmarkTagMutation = useDeleteBookmarkTag();
   const { data } = useBookmarkById(item.chromeBookmarkId ?? "");
-  console.log("BookmarkCard data:", data);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -55,6 +54,7 @@ export function BookmarkCard({
   };
 
   const handleUpdateRating = (rating: number) => {
+    console.log("Updating rating to:", rating);
     updateBookmarkMutation.mutate({ id: item.id, rating });
   };
 

@@ -12,7 +12,7 @@ export interface Router {
 	[key: string]: Procedure<any, any>;
 }
 
-export const query = <TInput = void, TOutput = unknown>(config: {
+export const query = <TInput, TOutput>(config: {
 	input?: z.ZodType<TInput>;
 	handler: (input: TInput) => Promise<TOutput>;
 }): Procedure<TInput, TOutput> => ({
@@ -21,7 +21,7 @@ export const query = <TInput = void, TOutput = unknown>(config: {
 	handler: config.handler,
 });
 
-export const mutation = <TInput = void, TOutput = unknown>(config: {
+export const mutation = <TInput, TOutput>(config: {
 	input?: z.ZodType<TInput>;
 	handler: (input: TInput) => Promise<TOutput>;
 }): Procedure<TInput, TOutput> => ({
@@ -33,9 +33,18 @@ export const mutation = <TInput = void, TOutput = unknown>(config: {
 export const createRouter = <T extends Router>(routes: T): T => routes;
 
 export type InferInput<T> =
-	T extends Procedure<infer TInput, unknown> ? TInput : never;
+	T extends Procedure<infer TInput, any>
+	? TInput
+	: T extends { handler: (input: infer TInput) => any }
+	? TInput
+	: never;
+
 export type InferOutput<T> =
-	T extends Procedure<unknown, infer TOutput> ? TOutput : never;
+	T extends Procedure<any, infer TOutput>
+	? TOutput
+	: T extends { handler: (...args: any[]) => Promise<infer TOutput> }
+	? TOutput
+	: never;
 
 export interface WorkerRequest<
 	TRoute extends string = string,
@@ -48,14 +57,21 @@ export interface WorkerRequest<
 	input: TInput;
 }
 
-export interface WorkerResponse<TOutput = unknown> {
-	type?: 'worker-response';
-	id: string;
-	requestId?: string;
-	success: boolean;
-	data?: TOutput;
-	error?: string;
-}
+export type WorkerResponse<TOutput = unknown> =
+	| {
+		type?: 'worker-response';
+		id: string;
+		requestId?: string;
+		success: true;
+		data: TOutput;
+	}
+	| {
+		type?: 'worker-response';
+		id: string;
+		requestId?: string;
+		success: false;
+		error: string;
+	};
 
 export const createWorkerHandler = <T extends Router>(router: T) => {
 	return async (request: WorkerRequest): Promise<WorkerResponse> => {
@@ -72,11 +88,11 @@ export const createWorkerHandler = <T extends Router>(router: T) => {
 				: input;
 			const data = await procedure.handler(validatedInput);
 
-			return { id, success: true, data };
+			return { id, success: true as const, data };
 		} catch (error) {
 			return {
 				id,
-				success: false,
+				success: false as const,
 				error: error instanceof Error ? error.message : "Unknown error",
 			};
 		}
