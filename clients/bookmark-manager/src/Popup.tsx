@@ -4,6 +4,7 @@ import { openFullScreen } from "./hooks/useExtension";
 import { useBookmarksWithTags } from "./db/useBookmark";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Button } from "@design-system/ui/button";
+import { formatDisplayUrl } from "./lib/utils";
 
 const queryClient = new QueryClient();
 
@@ -85,7 +86,7 @@ function PopupContent() {
                     </div>
                     {bookmark.url && (
                       <div className="text-xs text-gray-600 truncate mt-0.5">
-                        {new URL(bookmark.url).hostname}
+                        {formatDisplayUrl(bookmark.url)}
                       </div>
                     )}
                     {bookmark.tags && bookmark.tags.length > 0 && (

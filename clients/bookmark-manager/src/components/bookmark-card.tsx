@@ -8,6 +8,7 @@ import { Card } from "@design-system/ui/card";
 import { EllipsisVertical } from "lucide-react";
 import { Rating } from "./rating";
 import { TagGroup } from "./tag-group";
+import { formatDisplayUrl } from "../lib/utils";
 
 interface BookmarkCardProps {
   item: BookmarkWithTags;
@@ -207,7 +208,7 @@ export function BookmarkCard({
             title={item.url}
             style={{ color: "var(--color-primary)" }}
           >
-            {item.url}
+            {formatDisplayUrl(item.url)}
           </a>
         )}
 
