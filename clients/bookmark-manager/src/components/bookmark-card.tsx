@@ -219,12 +219,11 @@ export function BookmarkCard({
         {/* Tags using TagGroup component */}
         <div className="mb-2">
           <TagGroup
-            tags={item.tags || []}
-            // selectedTags={item.tags || []}
-            // onTagAdd={handleTagAdd}
-            // onTagRemove={handleTagRemove}
-            // onNewTagCreate={handleNewTagCreate}
-            // placeholder="Add tags..."
+            tags={data?.tags || item.tags || []}
+            onTagAdd={handleTagAdd}
+            onTagRemove={handleTagRemove}
+            onNewTagCreate={handleNewTagCreate}
+            placeholder="Add tags..."
           />
         </div>
 

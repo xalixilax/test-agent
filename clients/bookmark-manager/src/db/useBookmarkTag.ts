@@ -27,6 +27,7 @@ export const useAddBookmarkTag = (
 		onSuccess: (...args) => {
 			void queryClient.invalidateQueries({ queryKey: ["getBookmarks"] });
 			void queryClient.invalidateQueries({ queryKey: ["getBookmarksWithTags"] });
+			void queryClient.invalidateQueries({ queryKey: ["getBookmarkById"] });
 			void queryClient.invalidateQueries({ queryKey: ["getTags"] });
 			options?.onSuccess?.(...args);
 		},
@@ -51,6 +52,7 @@ export const useDeleteBookmarkTag = (
 		onSuccess: (...args) => {
 			void queryClient.invalidateQueries({ queryKey: ["getBookmarks"] });
 			void queryClient.invalidateQueries({ queryKey: ["getBookmarksWithTags"] });
+			void queryClient.invalidateQueries({ queryKey: ["getBookmarkById"] });
 			void queryClient.invalidateQueries({ queryKey: ["getTags"] });
 			options?.onSuccess?.(...args);
 		},

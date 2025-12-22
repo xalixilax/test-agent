@@ -31,5 +31,7 @@ export type DbTag = {
 
 export type BookmarkWithTags = DbBookmark & {
   tags: DbTag[];
+  title?: string;
+  url?: string;
 }
 

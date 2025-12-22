@@ -182,41 +182,50 @@ export const createAppRouter = (context: {
 					throw new Error("No fields to update");
 				}
 
-			// Check if bookmark exists
-			const existing = await context.db
-				.select()
-				.from(bookmarks)
-				.where(eq(bookmarks.chromeBookmarkId, chromeBookmarkId))
-				.limit(1);
+				// Check if bookmark exists
+				const existing = await context.db
+					.select()
+					.from(bookmarks)
+					.where(eq(bookmarks.chromeBookmarkId, chromeBookmarkId))
+					.limit(1);
 
-			if (existing.length === 0) {
-				// Create new bookmark if it doesn't exist
-				const [newBookmark] = await context.db
-					.insert(bookmarks)
-					.values({
-						chromeBookmarkId,
-						...updateData,
-					})
+				if (existing.length === 0) {
+					// Create new bookmark if it doesn't exist
+					const [newBookmark] = await context.db
+						.insert(bookmarks)
+						.values({
+							chromeBookmarkId,
+							...updateData,
+						})
+						.returning();
+
+					console.log("Created new bookmark:", newBookmark); // --- IGNORE ---
+					return newBookmark;
+				}
+
+				// Update existing bookmark
+				const [updatedBookmark] = await context.db
+					.update(bookmarks)
+					.set(updateData)
+					.where(eq(bookmarks.chromeBookmarkId, chromeBookmarkId))
 					.returning();
-				
-				console.log("Created new bookmark:", newBookmark); // --- IGNORE ---
-				return newBookmark;
-			}
 
-			// Update existing bookmark
-			const [updatedBookmark] = await context.db
-				.update(bookmarks)
-				.set(updateData)
-				.where(eq(bookmarks.chromeBookmarkId, chromeBookmarkId))
-				.returning();
+				console.log("Updated bookmark:", updatedBookmark); // --- IGNORE ---
 
-			console.log("Updated bookmark:", updatedBookmark); // --- IGNORE ---
+				return updatedBookmark;
+			},
+		}),
 
-		return updatedBookmark;
-	},
-}),
+		deleteBookmark: mutation({
+			input: deleteBookmarkSchema,
+			handler: async (input): Promise<{ chromeBookmarkId: string }> => {
+				await context.db.delete(bookmarks).where(eq(bookmarks.chromeBookmarkId, input.chromeBookmarkId));
+				return { chromeBookmarkId: input.chromeBookmarkId };
+			},
+		}),
 
-deleteBookmark: mutation({
+		// Tag queries and mutations
+		getTags: query({
 			handler: async (): Promise<Tag[]> => {
 				return await context.db.select().from(tags).orderBy(tags.id);
 			},
