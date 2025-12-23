@@ -25,13 +25,13 @@ function AddBookmark({ onAdd, currentFolderId }: AddBookmarkProps) {
 
   if (!isExpanded) {
     return (
-      <div className="flex gap-2">
+      <div className="flex gap-4">
         <Button
           onClick={() => {
             setIsExpanded(true);
             setIsFolder(false);
           }}
-          className="flex-1 font-black"
+          className="flex-1"
         >
           + ADD BOOKMARK
         </Button>
@@ -40,9 +40,7 @@ function AddBookmark({ onAdd, currentFolderId }: AddBookmarkProps) {
             setIsExpanded(true);
             setIsFolder(true);
           }}
-          className="flex-1 font-black"
-          variant="secondary"
-          size="lg"
+          className="flex-1"
         >
           📁 ADD FOLDER
         </Button>

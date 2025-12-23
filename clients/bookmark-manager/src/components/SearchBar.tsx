@@ -1,4 +1,11 @@
 import { Button } from "@design-system/ui/button";
+import { Input } from "@design-system/ui/input";
+import { Search, X } from "lucide-react";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@design-system/ui/input-group";
 
 interface SearchBarProps {
   searchTerm: string;
@@ -9,27 +16,35 @@ interface SearchBarProps {
 function SearchBar({ searchTerm, onSearch, compact = false }: SearchBarProps) {
   return (
     <div className="relative">
-      <input
+      <InputGroup>
+        <InputGroupInput
+          autoFocus
+          type="text"
+          placeholder="SEARCH..."
+          value={searchTerm}
+          onChange={(e) => onSearch(e.target.value)}
+          className="w-full pl-12"
+        />
+        <InputGroupAddon>
+          <Search />
+        </InputGroupAddon>
+        {searchTerm && (
+          <InputGroupAddon align="inline-end">
+            <button onClick={() => onSearch("")} title="Clear search">
+              <X />
+            </button>
+          </InputGroupAddon>
+        )}
+      </InputGroup>
+      {/* <Input
         autoFocus
         type="text"
         placeholder="SEARCH..."
         value={searchTerm}
         onChange={(e) => onSearch(e.target.value)}
-        className="w-full input-brutal pl-12 text-sm sm:text-base"
+        className="w-full pl-12"
       />
-      <svg
-        className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="3"
-        viewBox="0 0 24 24"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-        />
-      </svg>
+      <Search />
       {searchTerm && (
         <Button
           onClick={() => onSearch("")}
@@ -38,9 +53,9 @@ function SearchBar({ searchTerm, onSearch, compact = false }: SearchBarProps) {
           size="icon"
           title="Clear search"
         >
-          ×
+          <X />
         </Button>
-      )}
+      )} */}
     </div>
   );
 }

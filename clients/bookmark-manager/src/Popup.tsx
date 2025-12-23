@@ -1,24 +1,75 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import SearchBar from "./components/SearchBar";
 import { openFullScreen } from "./hooks/useExtension";
 import { useBookmarksWithTags } from "./db/useBookmark";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Button } from "@design-system/ui/button";
 import { formatDisplayUrl } from "./lib/utils";
+import type { BookmarkWithTags } from "./types";
 
 const queryClient = new QueryClient();
 
+// Extended bookmark type for popup with Chrome data
+type PopupBookmark = BookmarkWithTags & {
+  title?: string;
+  url?: string;
+};
+
 function PopupContent() {
   const [searchTerm, setSearchTerm] = useState("");
-  const { data: allBookmarks = [] } = useBookmarksWithTags();
+  const { data: dbBookmarks = [] } = useBookmarksWithTags();
+  const [allBookmarks, setAllBookmarks] = useState<PopupBookmark[]>([]);
+
+  // Fetch Chrome bookmarks and merge with DB data
+  useEffect(() => {
+    if (typeof chrome !== "undefined" && chrome.bookmarks) {
+      chrome.bookmarks.getTree().then((tree) => {
+        // Flatten Chrome bookmark tree
+        const flattenBookmarks = (
+          nodes: chrome.bookmarks.BookmarkTreeNode[]
+        ): chrome.bookmarks.BookmarkTreeNode[] => {
+          let result: chrome.bookmarks.BookmarkTreeNode[] = [];
+          for (const node of nodes) {
+            if (node.children) {
+              result = result.concat(flattenBookmarks(node.children));
+            } else if (node.url) {
+              result.push(node);
+            }
+          }
+          return result;
+        };
+
+        const flatChromeBookmarks = flattenBookmarks(tree);
+
+        // Merge with DB data
+        const merged: PopupBookmark[] = flatChromeBookmarks.map(
+          (chromeBookmark) => {
+            const dbData = dbBookmarks.find(
+              (db) => db.chromeBookmarkId === chromeBookmark.id
+            );
+            return {
+              chromeBookmarkId: chromeBookmark.id,
+              title: chromeBookmark.title,
+              url: chromeBookmark.url,
+              note: dbData?.note || null,
+              rating: dbData?.rating || null,
+              screenshot: dbData?.screenshot || null,
+              tags: dbData?.tags || [],
+            };
+          }
+        );
+
+        setAllBookmarks(merged);
+      });
+    }
+  }, [dbBookmarks]);
 
   const filteredBookmarks = searchTerm
     ? allBookmarks.filter(
         (bookmark) =>
-          (bookmark.title &&
-            bookmark.title.toLowerCase().includes(searchTerm.toLowerCase())) ||
-          (bookmark.url &&
-            bookmark.url.toLowerCase().includes(searchTerm.toLowerCase())) ||
+          bookmark.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          bookmark.url?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          bookmark.note?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           bookmark.tags?.some((tag) =>
             tag.name.toLowerCase().includes(searchTerm.toLowerCase())
           )
@@ -94,8 +145,7 @@ function PopupContent() {
                         {bookmark.tags.map((tag) => (
                           <span
                             key={tag.id}
-                            className="text-xs px-1 border border-black"
-                            style={{ background: tag.color || "#fff" }}
+                            className="text-xs px-1 border border-black bg-gray-100"
                           >
                             {tag.name}
                           </span>

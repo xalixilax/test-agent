@@ -4,7 +4,11 @@ import SearchBar from "./components/SearchBar";
 import AddBookmark from "./components/AddBookmark";
 import Breadcrumb from "./components/Breadcrumb";
 import { useBookmarks } from "./hooks/useBookmarks";
-import { useUpdateBookmark, useSyncChromeBookmarks } from "./db/useBookmark";
+import {
+  useUpdateBookmark,
+  useSyncChromeBookmarks,
+  useBookmarksWithTags,
+} from "./db/useBookmark";
 import { useScreenshots } from "./hooks/useScreenshots";
 import {
   QueryClient,
@@ -120,21 +124,6 @@ function BookmarkManager() {
     captureScreenshot: captureScreenshotHook,
     deleteScreenshot: deleteScreenshotHook,
   } = useScreenshots();
-
-  const filteredBookmarks = searchTerm
-    ? allBookmarks.filter(
-        (bookmark) =>
-          bookmark.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (bookmark.url &&
-            bookmark.url.toLowerCase().includes(searchTerm.toLowerCase())) ||
-          (bookmark as any).note
-            ?.toLowerCase()
-            .includes(searchTerm.toLowerCase()) ||
-          (bookmark as any).tags?.some((tag: any) =>
-            tag.name.toLowerCase().includes(searchTerm.toLowerCase())
-          )
-      )
-    : bookmarks;
 
   // Navigate to a folder and update URL
   const navigateToFolder = useCallback(
@@ -306,6 +295,56 @@ function BookmarkManager() {
   // }
 
   const chromeBookmarkQuery = useChromeBookmarksTree(currentFolderId);
+  const { data: dbBookmarks = [] } = useBookmarksWithTags();
+
+  // Helper to enrich Chrome bookmarks with DB data (tags, notes, etc.)
+  const enrichBookmark = useCallback(
+    (chromeBookmark: chrome.bookmarks.BookmarkTreeNode) => {
+      const dbData = dbBookmarks.find(
+        (b) => b.chromeBookmarkId === chromeBookmark.id
+      );
+      return {
+        ...chromeBookmark,
+        note: dbData?.note || undefined,
+        rating: dbData?.rating || undefined,
+        screenshot: dbData?.screenshot || undefined,
+        tags: dbData?.tags || [],
+      };
+    },
+    [dbBookmarks]
+  );
+
+  // For search, we need to flatten and search across all bookmarks
+  const flattenedBookmarks = (
+    nodes: chrome.bookmarks.BookmarkTreeNode[]
+  ): chrome.bookmarks.BookmarkTreeNode[] => {
+    let result: chrome.bookmarks.BookmarkTreeNode[] = [];
+    for (const node of nodes) {
+      if (node.children) {
+        result = result.concat(flattenedBookmarks(node.children));
+      } else if (node.url) {
+        result.push(node);
+      }
+    }
+    return result;
+  };
+
+  const filteredBookmarks = searchTerm
+    ? flattenedBookmarks(chromeBookmarkQuery.data || [])
+        .map(enrichBookmark) // Enrich with DB data
+        .filter(
+          (bookmark) =>
+            bookmark.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (bookmark.url &&
+              bookmark.url.toLowerCase().includes(searchTerm.toLowerCase())) ||
+            (bookmark as any).note
+              ?.toLowerCase()
+              .includes(searchTerm.toLowerCase()) ||
+            (bookmark as any).tags?.some((tag: any) =>
+              tag.name.toLowerCase().includes(searchTerm.toLowerCase())
+            )
+        )
+    : chromeBookmarkQuery.data || [];
 
   if (chromeBookmarkQuery.isLoading) {
     return (
@@ -375,7 +414,7 @@ function BookmarkManager() {
           />
           <SearchBar searchTerm={searchTerm} onSearch={setSearchTerm} />
           <BookmarkList
-            items={chromeBookmarkQuery.data || []}
+            items={filteredBookmarks}
             onDelete={handleDeleteBookmark}
             onCaptureScreenshot={captureScreenshot}
             onDeleteScreenshot={deleteScreenshot}
