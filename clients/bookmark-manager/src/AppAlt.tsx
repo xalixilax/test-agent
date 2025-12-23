@@ -107,7 +107,12 @@ function BookmarkManager() {
   const [isSyncing, setIsSyncing] = useState(false);
   const updateBookmarkMutation = useUpdateBookmark();
   const syncChromeBookmarksMutation = useSyncChromeBookmarks();
-  const { screenshots, loadScreenshots, captureScreenshot: captureScreenshotHook, deleteScreenshot: deleteScreenshotHook } = useScreenshots();
+  const {
+    screenshots,
+    loadScreenshots,
+    captureScreenshot: captureScreenshotHook,
+    deleteScreenshot: deleteScreenshotHook,
+  } = useScreenshots();
 
   const filteredBookmarks = searchTerm
     ? allBookmarks.filter(
@@ -242,7 +247,6 @@ function BookmarkManager() {
   // }
 
   const chromeBookmarkQuery = useChromeBookmarksTree(currentFolderId);
-
 
   if (chromeBookmarkQuery.isLoading) {
     return (
