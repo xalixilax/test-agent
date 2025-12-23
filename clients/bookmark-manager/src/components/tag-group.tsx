@@ -107,11 +107,7 @@ export function TagGroup({
             return (
               <>
                 {values?.map((item) => (
-                  <ComboboxChip
-                    aria-label={item.label}
-                    key={item.value}
-                    className="bg-primary text-primary-foreground border-2 border-foreground font-bold px-2 py-0.5 text-xs"
-                  >
+                  <ComboboxChip aria-label={item.label} key={item.value}>
                     {item.label}
                   </ComboboxChip>
                 ))}

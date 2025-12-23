@@ -285,9 +285,10 @@ function BookmarkManager() {
   //   );
   // }
 
-  const bookmarkQuery = useBookmarksTree(currentFolderId);
+  const chromeBookmarkQuery = useChromeBookmarksTree(currentFolderId);
 
-  if (bookmarkQuery.isLoading) {
+
+  if (chromeBookmarkQuery.isLoading) {
     return (
       <div
         className="flex items-center justify-center h-screen"
@@ -298,36 +299,18 @@ function BookmarkManager() {
     );
   }
 
-  if (bookmarkQuery.isError) {
+  if (chromeBookmarkQuery.isError) {
     return (
       <div
         className="flex items-center justify-center h-screen"
         style={{ background: "var(--color-bg)" }}
       >
         <div className="text-2xl font-bold">
-          ERROR LOADING BOOKMARKS: {String(bookmarkQuery.error)}
+          ERROR LOADING BOOKMARKS: {String(chromeBookmarkQuery.error)}
         </div>
       </div>
     );
   }
-
-  // Convert Chrome bookmarks to BookmarkWithTags format
-  const convertedBookmarks: BookmarkWithTags[] = (bookmarkQuery.data || []).map(
-    (node) => ({
-      id: parseInt(node.id),
-      chromeBookmarkId: node.id,
-      chromeParentId: node.parentId,
-      parentId: node.parentId ? parseInt(node.parentId) : null,
-      title: node.title || "Untitled",
-      url: node.url || null,
-      isFolder: node.children ? 1 : 0,
-      dateAdded: node.dateAdded ? new Date(node.dateAdded) : null,
-      tags: [],
-      note: null,
-      rating: null,
-      screenshot: null,
-    })
-  );
 
   return (
     <div
@@ -363,7 +346,7 @@ function BookmarkManager() {
           />
           <SearchBar searchTerm={searchTerm} onSearch={setSearchTerm} />
           <BookmarkList
-            items={convertedBookmarks}
+            items={chromeBookmarkQuery.data || []}
             onDelete={handleDeleteBookmark}
             onCaptureScreenshot={captureScreenshot}
             onDeleteScreenshot={deleteScreenshot}
@@ -400,7 +383,7 @@ function App() {
 
 export default App;
 
-function useBookmarksTree(folderId: number | null) {
+function useChromeBookmarksTree(folderId: number | null) {
   return useQuery({
     queryKey: ["getBookmarksTree", folderId],
     queryFn: async () => {

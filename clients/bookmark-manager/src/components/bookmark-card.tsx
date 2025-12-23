@@ -11,7 +11,7 @@ import { TagGroup } from "./tag-group";
 import { formatDisplayUrl } from "../lib/utils";
 
 interface BookmarkCardProps {
-  item: BookmarkWithTags;
+  item: chrome.bookmarks.BookmarkTreeNode;
   onDelete: (chromeBookmarkId: string) => void;
   onCaptureScreenshot: (chromeBookmarkId: string, url: string) => void;
   onDeleteScreenshot: (chromeBookmarkId: string) => void;
@@ -30,14 +30,13 @@ export function BookmarkCard({
   formatDate,
 }: BookmarkCardProps) {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  const [editingNote, setEditingNote] = useState(false);
-  const [noteText, setNoteText] = useState("");
 
-  const updateBookmarkMutation = useUpdateBookmark();
+  const updateNoteMutation = useUpdateBookmark();
+  const updateRatingMutation = useUpdateBookmark();
   const addTagMutation = useAddTag();
   const addBookmarkTagMutation = useAddBookmarkTag();
   const deleteBookmarkTagMutation = useDeleteBookmarkTag();
-  const { data } = useBookmarkById(item.chromeBookmarkId ?? "");
+  const { data } = useBookmarkById(item.id ?? "");
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -48,30 +47,28 @@ export function BookmarkCard({
     }
   }, [openMenuId]);
 
-  const handleSaveNote = () => {
-    updateBookmarkMutation.mutate({
-      chromeBookmarkId: item.chromeBookmarkId,
-      note: noteText,
+  const handleSaveNote = (note: string) => {
+    updateNoteMutation.mutate({
+      chromeBookmarkId: item.id,
+      note,
     });
-    setEditingNote(false);
-    setNoteText("");
   };
 
   const handleUpdateRating = (rating: number) => {
     console.log("Updating rating to:", rating);
-    updateBookmarkMutation.mutate({
-      chromeBookmarkId: item.chromeBookmarkId,
+    updateRatingMutation.mutate({
+      chromeBookmarkId: item.id,
       rating,
     });
   };
 
   const handleTagAdd = (tagId: number) => {
-    addBookmarkTagMutation.mutate({ bookmarkId: item.chromeBookmarkId, tagId });
+    addBookmarkTagMutation.mutate({ bookmarkId: item.id, tagId });
   };
 
   const handleTagRemove = (tagId: number) => {
     deleteBookmarkTagMutation.mutate({
-      bookmarkId: item.chromeBookmarkId,
+      bookmarkId: item.id,
       tagId,
     });
   };
@@ -82,7 +79,7 @@ export function BookmarkCard({
       {
         onSuccess: (newTag: any) => {
           addBookmarkTagMutation.mutate({
-            bookmarkId: item.chromeBookmarkId,
+            bookmarkId: item.id,
             tagId: newTag.id,
           });
         },
@@ -95,29 +92,25 @@ export function BookmarkCard({
       className="relative card-brutal p-3 sm:p-4"
       style={{ background: "var(--color-white)" }}
     >
-      <div className="flex flex-col h-full">
+      <div className="flex flex-col h-full gap-2">
         {/* Kebab menu */}
         <div className="absolute top-2 right-2">
           <Button
             onClick={(e) => {
               e.stopPropagation();
-              setOpenMenuId(
-                openMenuId === item.chromeBookmarkId
-                  ? null
-                  : item.chromeBookmarkId
-              );
+              setOpenMenuId(openMenuId === item.id ? null : item.id);
             }}
             className="flex-col gap-1"
             variant="default"
             size="icon"
             aria-label="Bookmark actions menu"
-            aria-expanded={openMenuId === item.chromeBookmarkId}
+            aria-expanded={openMenuId === item.id}
             aria-haspopup="true"
           >
             <EllipsisVertical />
           </Button>
 
-          {openMenuId === item.chromeBookmarkId && (
+          {openMenuId === item.id && (
             <div
               className="absolute right-0 mt-1 w-40 border-3 border-black z-10 shadow-brutal"
               style={{ background: "var(--color-white)" }}
@@ -128,7 +121,7 @@ export function BookmarkCard({
                 <Button
                   onClick={(e) => {
                     e.stopPropagation();
-                    onCaptureScreenshot(item.chromeBookmarkId, item.url!);
+                    onCaptureScreenshot(item.id, item.url!);
                     setOpenMenuId(null);
                   }}
                   className="w-full justify-start gap-2 border-b-2 rounded-none"
@@ -143,7 +136,7 @@ export function BookmarkCard({
                 <Button
                   onClick={(e) => {
                     e.stopPropagation();
-                    onDeleteScreenshot(item.chromeBookmarkId);
+                    onDeleteScreenshot(item.id);
                     setOpenMenuId(null);
                   }}
                   className="w-full justify-start gap-2 border-b-2 rounded-none"
@@ -157,7 +150,7 @@ export function BookmarkCard({
               <Button
                 onClick={(e) => {
                   e.stopPropagation();
-                  onDelete(item.chromeBookmarkId);
+                  onDelete(item.id);
                   setOpenMenuId(null);
                 }}
                 className="w-full justify-start gap-2 hover:bg-red-100 rounded-none"
@@ -217,60 +210,59 @@ export function BookmarkCard({
           setRating={handleUpdateRating}
         />
 
-        {/* Tags using TagGroup component */}
-        <div className="mb-2">
-          <TagGroup
-            tags={data?.tags || item.tags || []}
-            onTagAdd={handleTagAdd}
-            onTagRemove={handleTagRemove}
-            onNewTagCreate={handleNewTagCreate}
-            placeholder="Add tags..."
-          />
-        </div>
-
-        {/* Note */}
-        <Notes
-          note={data?.note ?? undefined}
-          editingNote={editingNote}
-          noteText={noteText}
-          setNoteText={setNoteText}
-          handleSaveNote={handleSaveNote}
-          setEditingNote={setEditingNote}
-          item={item}
+        <TagGroup
+          tags={data?.tags || []}
+          onTagAdd={handleTagAdd}
+          onTagRemove={handleTagRemove}
+          onNewTagCreate={handleNewTagCreate}
+          placeholder="Add tags..."
         />
 
-        {/* Date - removed as not in schema */}
+        <Notes
+          note={data?.note || ""}
+          setNote={handleSaveNote}
+          isPending={updateNoteMutation.isPending}
+          pendingNote={updateNoteMutation.variables?.note ?? undefined}
+          isError={updateNoteMutation.isError}
+        />
+
+        {/* Display date */}
+        <div className="mt-auto text-xs text-gray-600 italic">
+          Added: {formatDate(item.dateAdded)}
+        </div>
       </div>
     </Card>
   );
 }
 
 type NotesProps = {
-  note?: string;
-  editingNote: boolean;
-  noteText: string;
-  setNoteText: (text: string) => void;
-  handleSaveNote: () => void;
-  setEditingNote: (editing: boolean) => void;
-  item: BookmarkWithTags;
+  note: string;
+  setNote: (note: string) => void;
+  isPending: boolean;
+  pendingNote: string | undefined;
+  isError: boolean;
 };
 
-function Notes({
-  note,
-  editingNote,
-  noteText,
-  setNoteText,
-  handleSaveNote,
-  setEditingNote,
-  item,
-}: NotesProps) {
+function Notes({ note, setNote, isPending, pendingNote, isError }: NotesProps) {
+  const [editingNote, setEditingNote] = useState<boolean>(false);
+  const [value, setValue] = useState<string>("");
+
+  // Display optimistic value while mutation is pending
+  const displayNote =
+    isPending && pendingNote !== undefined ? pendingNote : note;
+
+  const handleStartEdit = () => {
+    setValue(displayNote); // Initialize with current value when entering edit mode
+    setEditingNote(true);
+  };
+
   return (
     <div className="mb-2">
       {editingNote ? (
         <div>
           <textarea
-            value={noteText}
-            onChange={(e) => setNoteText(e.target.value)}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
             placeholder="Add a note..."
             className="w-full text-xs font-bold border-3 px-2 py-1 min-h-20"
             onClick={(e) => e.stopPropagation()}
@@ -279,22 +271,24 @@ function Notes({
             <Button
               onClick={(e) => {
                 e.stopPropagation();
-                handleSaveNote();
+                setEditingNote(false);
+                setNote(value);
               }}
               className="flex-1"
               size="sm"
+              disabled={isPending}
             >
-              SAVE
+              {isPending ? "SAVING..." : "SAVE"}
             </Button>
             <Button
               onClick={(e) => {
                 e.stopPropagation();
                 setEditingNote(false);
-                setNoteText("");
               }}
               className="flex-1"
               variant="default"
               size="sm"
+              disabled={isPending}
             >
               CANCEL
             </Button>
@@ -304,16 +298,24 @@ function Notes({
         <div
           onClick={(e) => {
             e.stopPropagation();
-            setEditingNote(true);
-            setNoteText(item.note || "");
+            handleStartEdit();
           }}
           className="cursor-pointer hover:bg-gray-50 border-2 border-dashed border-gray-300 px-2 py-2 min-h-12"
+          style={{ opacity: isPending ? 0.6 : 1 }}
         >
-          {note ? (
-            <p className="text-xs font-bold">{note}</p>
+          {displayNote ? (
+            <p className="text-xs font-bold">
+              {displayNote}
+              {isPending && " (saving...)"}
+            </p>
           ) : (
             <p className="text-xs font-bold text-gray-400">
               Click to add note...
+            </p>
+          )}
+          {isError && (
+            <p className="text-xs font-bold text-red-600 mt-1">
+              Failed to save. Click to retry.
             </p>
           )}
         </div>

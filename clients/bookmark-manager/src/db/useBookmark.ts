@@ -112,12 +112,17 @@ export const useUpdateBookmark = (
 
 	return useMutation({
 		mutationFn: (input) => client.updateBookmark.mutate(input),
-		onSuccess: (...args) => {
-			void queryClient.invalidateQueries({ queryKey: ["getBookmarks"] });
-			void queryClient.invalidateQueries({ queryKey: ["getBookmarksWithTags"] });
-			void queryClient.invalidateQueries({ queryKey: ["getBookmarksByParent"] });
-			void queryClient.invalidateQueries({ queryKey: ["getBookmarkById"] });
-			options?.onSuccess?.(...args);
+		// Refetch after mutation completes (success or error)
+		// Return the promise to keep mutation in pending state until refetch completes
+		onSettled: async (data, error, variables) => {
+			await Promise.all([
+				queryClient.invalidateQueries({ queryKey: ["getBookmarks"] }),
+				queryClient.invalidateQueries({ queryKey: ["getBookmarksWithTags"] }),
+				queryClient.invalidateQueries({ queryKey: ["getBookmarksByParent"] }),
+				queryClient.invalidateQueries({
+					queryKey: ["getBookmarkById", variables.chromeBookmarkId],
+				}),
+			]);
 		},
 		...options,
 	});

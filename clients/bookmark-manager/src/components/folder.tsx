@@ -1,10 +1,9 @@
-import type { BookmarkWithTags } from "@/types";
 import { Button } from "@design-system/ui/button";
 import { Card } from "@design-system/ui/card";
 import { Folder as FolderIcon } from "lucide-react";
 
 interface FolderProps {
-  item: BookmarkWithTags;
+  item: chrome.bookmarks.BookmarkTreeNode;
   onNavigateToFolder: (chromeBookmarkId: string, folderTitle: string) => void;
   onDelete: (chromeBookmarkId: string) => void;
 }
@@ -12,10 +11,10 @@ interface FolderProps {
 export function Folder({ item, onNavigateToFolder, onDelete }: FolderProps) {
   return (
     <Card
-      key={item.chromeBookmarkId}
+      key={item.id}
       className="relative card-brutal p-3 sm:p-4 cursor-pointer hover:bg-purple-background transition-colors bg-green-background"
       onClick={() =>
-        onNavigateToFolder(item.chromeBookmarkId, item.title || "")
+        onNavigateToFolder(item.id, item.title || "")
       }
     >
       <div className="flex flex-col h-full items-center justify-center py-8">
@@ -30,7 +29,7 @@ export function Folder({ item, onNavigateToFolder, onDelete }: FolderProps) {
         <Button
           onClick={(e) => {
             e.stopPropagation();
-            onDelete(item.chromeBookmarkId);
+            onDelete(item.id);
           }}
           variant="destructive"
           size="icon"
