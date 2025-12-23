@@ -85,8 +85,8 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
           // Capture screenshot using chrome.webNavigation or after DOM is ready
           try {
             const dataUrl = await chrome.tabs.captureVisibleTab(undefined, {
-              format: 'png',
-              quality: 80
+              format: 'jpeg',
+              quality: 50
             });
 
             screenshots[bookmark.id] = {
@@ -198,8 +198,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         if (tabs.length > 0 && tabs[0]?.id && tabs[0]?.windowId) {
           // Found a tab with this URL, capture it
           const dataUrl = await chrome.tabs.captureVisibleTab(tabs[0].windowId, {
-            format: 'png',
-            quality: 80
+            format: 'jpeg',
+            quality: 50
           });
 
           const result = await chrome.storage.local.get('screenshots');
@@ -245,8 +245,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
           // Capture screenshot
           const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, {
-            format: 'png',
-            quality: 80
+            format: 'jpeg',
+            quality: 50
           });
 
           const result = await chrome.storage.local.get('screenshots');

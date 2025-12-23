@@ -5,6 +5,7 @@ import AddBookmark from "./components/AddBookmark";
 import Breadcrumb from "./components/Breadcrumb";
 import { useBookmarks } from "./hooks/useBookmarks";
 import { useUpdateBookmark, useSyncChromeBookmarks } from "./db/useBookmark";
+import { useScreenshots } from "./hooks/useScreenshots";
 import {
   QueryClient,
   QueryClientProvider,
@@ -106,6 +107,7 @@ function BookmarkManager() {
   const [isSyncing, setIsSyncing] = useState(false);
   const updateBookmarkMutation = useUpdateBookmark();
   const syncChromeBookmarksMutation = useSyncChromeBookmarks();
+  const { screenshots, loadScreenshots, captureScreenshot: captureScreenshotHook, deleteScreenshot: deleteScreenshotHook } = useScreenshots();
 
   const filteredBookmarks = searchTerm
     ? allBookmarks.filter(
@@ -175,10 +177,11 @@ function BookmarkManager() {
     );
   }, []);
 
-  // Load bookmarks immediately on mount
+  // Load bookmarks and screenshots immediately on mount
   useEffect(() => {
     loadBookmarks();
-  }, [loadBookmarks]);
+    loadScreenshots();
+  }, [loadBookmarks, loadScreenshots]);
 
   // Handle browser back/forward navigation
   useEffect(() => {
@@ -212,66 +215,19 @@ function BookmarkManager() {
   };
 
   const captureScreenshot = useCallback(
-    async (id: number, url: string) => {
-      // Find the bookmark to get its Chrome bookmark ID
-      const bookmark = bookmarks.find((b) => b.id === id);
-      if (!bookmark?.chromeBookmarkId || typeof chrome === "undefined") {
-        console.error(
-          "Cannot capture screenshot: Chrome bookmark ID not found"
-        );
-        return;
-      }
-
-      // Send message to background script to capture screenshot
-      chrome.runtime.sendMessage(
-        {
-          action: "captureScreenshot",
-          bookmarkId: bookmark.chromeBookmarkId,
-          url,
-        },
-        (response) => {
-          if (response?.success && response?.dataUrl) {
-            // Update the database with the screenshot
-            updateBookmarkMutation.mutate({
-              id,
-              screenshot: response.dataUrl,
-            });
-          } else {
-            console.error("Failed to capture screenshot:", response?.error);
-          }
-        }
-      );
+    async (chromeBookmarkId: string, url: string) => {
+      // Use the hook to capture screenshot
+      captureScreenshotHook(chromeBookmarkId, url);
     },
-    [bookmarks, updateBookmarkMutation]
+    [captureScreenshotHook]
   );
 
   const deleteScreenshot = useCallback(
-    async (id: number) => {
-      // Find the bookmark to get its Chrome bookmark ID
-      const bookmark = bookmarks.find((b) => b.id === id);
-
-      // Delete from Chrome storage if we have the Chrome bookmark ID
-      if (bookmark?.chromeBookmarkId && typeof chrome !== "undefined") {
-        chrome.runtime.sendMessage(
-          {
-            action: "deleteScreenshot",
-            bookmarkId: bookmark.chromeBookmarkId,
-          },
-          (response) => {
-            if (!response?.success) {
-              console.error(
-                "Failed to delete screenshot from Chrome storage:",
-                response?.error
-              );
-            }
-          }
-        );
-      }
-
-      // Delete from database
-      updateBookmarkMutation.mutate({ id, screenshot: "" });
+    async (chromeBookmarkId: string) => {
+      // Use the hook to delete screenshot
+      deleteScreenshotHook(chromeBookmarkId);
     },
-    [bookmarks, updateBookmarkMutation]
+    [deleteScreenshotHook]
   );
 
   // if (loading) {
@@ -352,6 +308,7 @@ function BookmarkManager() {
             onDeleteScreenshot={deleteScreenshot}
             onNavigateToFolder={navigateToFolder}
             isSearching={!!searchTerm}
+            screenshots={screenshots}
           />
         </div>
       </div>

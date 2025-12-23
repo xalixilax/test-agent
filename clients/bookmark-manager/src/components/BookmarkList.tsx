@@ -11,6 +11,7 @@ interface BookmarkListProps {
   onDeleteScreenshot: (chromeBookmarkId: string) => void;
   onNavigateToFolder: (chromeBookmarkId: string, folderTitle: string) => void;
   isSearching: boolean;
+  screenshots: Record<string, any>;
 }
 
 function BookmarkList({
@@ -20,6 +21,7 @@ function BookmarkList({
   onDeleteScreenshot,
   onNavigateToFolder,
   isSearching,
+  screenshots,
 }: BookmarkListProps) {
   const [selectedScreenshot, setSelectedScreenshot] = useState<string | null>(
     null
@@ -77,6 +79,7 @@ function BookmarkList({
               onOpenBookmark={handleOpenBookmark}
               onViewScreenshot={setSelectedScreenshot}
               formatDate={formatDate}
+              screenshot={screenshots[item.id]?.dataUrl}
             />
           );
         })}

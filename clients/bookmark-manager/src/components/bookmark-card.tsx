@@ -18,6 +18,7 @@ interface BookmarkCardProps {
   onOpenBookmark: (url: string) => void;
   onViewScreenshot: (screenshot: string) => void;
   formatDate: (timestamp?: Date | null) => string;
+  screenshot?: string;
 }
 
 export function BookmarkCard({
@@ -28,6 +29,7 @@ export function BookmarkCard({
   onOpenBookmark,
   onViewScreenshot,
   formatDate,
+  screenshot,
 }: BookmarkCardProps) {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
@@ -132,7 +134,7 @@ export function BookmarkCard({
                   📷 SCREENSHOT
                 </Button>
               )}
-              {item.screenshot && (
+              {screenshot && (
                 <Button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -166,14 +168,14 @@ export function BookmarkCard({
         </div>
 
         {/* Screenshot */}
-        {item.screenshot && (
+        {screenshot && (
           <div
             className="w-full h-20 sm:h-24 border-3 border-black mb-2 sm:mb-3 overflow-hidden cursor-pointer hover:opacity-80 transition-opacity"
-            onClick={() => onViewScreenshot(item.screenshot!)}
+            onClick={() => onViewScreenshot(screenshot!)}
             title="Click to view full screenshot"
           >
             <img
-              src={item.screenshot}
+              src={screenshot}
               alt={`Screenshot of ${item.title}`}
               className="w-full h-full object-cover"
             />
