@@ -84,10 +84,10 @@ function BookmarkManager() {
   const getInitialFolderId = () => {
     const params = new URLSearchParams(window.location.search);
     const parentId = params.get("parentId");
-    return parentId ? parseInt(parentId) : null;
+    return parentId;
   };
 
-  const [currentFolderId, setCurrentFolderId] = useState<number | null>(
+  const [currentFolderId, setCurrentFolderId] = useState<string | null>(
     getInitialFolderId
   );
   const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbItem[]>([
@@ -124,11 +124,13 @@ function BookmarkManager() {
   const filteredBookmarks = searchTerm
     ? allBookmarks.filter(
         (bookmark) =>
-          bookmark.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          bookmark.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           (bookmark.url &&
             bookmark.url.toLowerCase().includes(searchTerm.toLowerCase())) ||
-          bookmark.note?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          bookmark.tags?.some((tag) =>
+          (bookmark as any).note
+            ?.toLowerCase()
+            .includes(searchTerm.toLowerCase()) ||
+          (bookmark as any).tags?.some((tag: any) =>
             tag.name.toLowerCase().includes(searchTerm.toLowerCase())
           )
       )
@@ -136,13 +138,13 @@ function BookmarkManager() {
 
   // Navigate to a folder and update URL
   const navigateToFolder = useCallback(
-    (folderId: number | null, folderTitle: string) => {
+    (folderId: string | null, folderTitle: string) => {
       setCurrentFolderId(folderId);
 
       // Update URL with pushState for browser history
       const url = new URL(window.location.href);
       if (folderId !== null) {
-        url.searchParams.set("parentId", folderId.toString());
+        url.searchParams.set("parentId", folderId);
       } else {
         url.searchParams.delete("parentId");
       }
@@ -155,7 +157,7 @@ function BookmarkManager() {
         // Add to breadcrumbs
         setBreadcrumbs((prev) => [
           ...prev,
-          { id: folderId.toString(), title: folderTitle },
+          { id: folderId, title: folderTitle },
         ]);
       }
     },
@@ -171,9 +173,8 @@ function BookmarkManager() {
       setBreadcrumbs([{ id: "root", title: "Bookmarks" }]);
       url.searchParams.delete("parentId");
     } else {
-      const folderId = parseInt(id);
-      setCurrentFolderId(folderId);
-      url.searchParams.set("parentId", folderId.toString());
+      setCurrentFolderId(id);
+      url.searchParams.set("parentId", id);
 
       // Trim breadcrumbs to this point
       setBreadcrumbs((prev) => {
@@ -219,13 +220,12 @@ function BookmarkManager() {
     const handlePopState = (event: PopStateEvent) => {
       const params = new URLSearchParams(window.location.search);
       const parentId = params.get("parentId");
-      const folderId = parentId ? parseInt(parentId) : null;
 
-      setCurrentFolderId(folderId);
+      setCurrentFolderId(parentId);
 
       // Rebuild breadcrumbs based on current folder
       // You might need to traverse bookmarks to rebuild the full path
-      if (folderId === null) {
+      if (parentId === null) {
         setBreadcrumbs([{ id: "root", title: "Bookmarks" }]);
       } else {
         // For now, just update the state - breadcrumbs will rebuild on next navigation
@@ -238,7 +238,11 @@ function BookmarkManager() {
   }, []);
 
   const handleAddBookmark = (title: string, url: string, isFolder: boolean) => {
-    addBookmark(title, url, currentFolderId, isFolder ? 1 : 0);
+    // This function is kept for compatibility but bookmark creation
+    // should happen through Chrome's API, not directly in the database
+    console.warn(
+      "handleAddBookmark called - bookmarks should be created through Chrome API"
+    );
   };
 
   const handleDeleteBookmark = (id: string) => {
@@ -377,7 +381,6 @@ function BookmarkManager() {
             onDeleteScreenshot={deleteScreenshot}
             onNavigateToFolder={navigateToFolder}
             isSearching={!!searchTerm}
-            screenshots={screenshots}
           />
         </div>
       </div>
@@ -409,12 +412,12 @@ function App() {
 
 export default App;
 
-function useChromeBookmarksTree(folderId: number | null) {
+function useChromeBookmarksTree(folderId: string | null) {
   return useQuery({
     queryKey: ["getBookmarksTree", folderId],
     queryFn: async () => {
       // If no folderId specified, default to Bookmarks Bar ("1")
-      const targetId = folderId?.toString() || "1";
+      const targetId = folderId || "1";
 
       // Get the specific folder's children
       const nodes = await chrome.bookmarks.getSubTree(targetId);

@@ -230,7 +230,7 @@ export function BookmarkCard({
 
         {/* Display date */}
         <div className="mt-auto text-xs text-gray-600 italic">
-          Added: {formatDate(item.dateAdded)}
+          Added: {formatDate(item.dateAdded ? new Date(item.dateAdded) : null)}
         </div>
       </div>
     </Card>

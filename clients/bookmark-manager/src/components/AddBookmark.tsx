@@ -3,7 +3,7 @@ import { Button } from "@design-system/ui/button";
 
 interface AddBookmarkProps {
   onAdd: (title: string, url: string, isFolder: boolean) => void;
-  currentFolderId: number | null;
+  currentFolderId: string | null;
 }
 
 function AddBookmark({ onAdd, currentFolderId }: AddBookmarkProps) {

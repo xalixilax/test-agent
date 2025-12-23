@@ -40,7 +40,7 @@ let handleRequest: ReturnType<typeof createWorkerHandler> | null = null;
 // Helper function to get visited URLs from storage
 async function getVisitedUrls(): Promise<Set<string>> {
   const result = await chrome.storage.local.get('visitedUrls');
-  const data: VisitedUrlsData = result.visitedUrls || { urls: [] };
+  const data: VisitedUrlsData = (result.visitedUrls || { urls: [] }) as VisitedUrlsData;
   return new Set(data.urls);
 }
 
@@ -156,7 +156,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 
         // Check if we already have a screenshot for this bookmark
         const result = await chrome.storage.local.get('screenshots');
-        const screenshots: ScreenshotData = result.screenshots || {};
+        const screenshots: ScreenshotData = (result.screenshots || {}) as ScreenshotData;
 
         // Get visited URLs from storage
         const visitedUrls = await getVisitedUrls();
@@ -243,7 +243,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           if (bookmarks.length > 0) {
             const bookmark = bookmarks[0];
             const result = await chrome.storage.local.get('screenshots');
-            const screenshots: ScreenshotData = result.screenshots || {};
+            const screenshots: ScreenshotData = (result.screenshots || {}) as ScreenshotData;
 
             sendResponse({
               success: true,
