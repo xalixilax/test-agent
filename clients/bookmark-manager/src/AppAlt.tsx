@@ -105,6 +105,13 @@ function BookmarkManager() {
 
   const [searchTerm, setSearchTerm] = useState("");
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isFetchingImages, setIsFetchingImages] = useState(false);
+  const [fetchProgress, setFetchProgress] = useState({
+    processed: 0,
+    total: 0,
+    success: 0,
+    failed: 0,
+  });
   const updateBookmarkMutation = useUpdateBookmark();
   const syncChromeBookmarksMutation = useSyncChromeBookmarks();
   const {
@@ -188,6 +195,25 @@ function BookmarkManager() {
     loadScreenshots();
   }, [loadBookmarks, loadScreenshots]);
 
+  // Listen for fetch progress updates
+  useEffect(() => {
+    const handleMessage = (message: any) => {
+      if (message.action === "fetchProgress") {
+        setFetchProgress({
+          processed: message.processed,
+          total: message.total,
+          success: message.success,
+          failed: message.failed,
+        });
+      }
+    };
+
+    if (typeof chrome !== "undefined" && chrome.runtime) {
+      chrome.runtime.onMessage.addListener(handleMessage);
+      return () => chrome.runtime.onMessage.removeListener(handleMessage);
+    }
+  }, []);
+
   // Handle browser back/forward navigation
   useEffect(() => {
     const handlePopState = (event: PopStateEvent) => {
@@ -215,7 +241,7 @@ function BookmarkManager() {
     addBookmark(title, url, currentFolderId, isFolder ? 1 : 0);
   };
 
-  const handleDeleteBookmark = (id: number) => {
+  const handleDeleteBookmark = (id: string) => {
     deleteBookmark(id);
   };
 
@@ -234,6 +260,35 @@ function BookmarkManager() {
     },
     [deleteScreenshotHook]
   );
+
+  const fetchAllMissingImages = useCallback(async () => {
+    if (isFetchingImages) return;
+
+    setIsFetchingImages(true);
+    setFetchProgress({ processed: 0, total: 0, success: 0, failed: 0 });
+
+    try {
+      if (typeof chrome !== "undefined" && chrome.runtime) {
+        chrome.runtime.sendMessage(
+          { action: "fetchAllMissingImages" },
+          (response) => {
+            if (response?.success) {
+              console.log(
+                `Fetched images: ${response.successCount} succeeded, ${response.failCount} failed`
+              );
+              loadScreenshots(); // Reload screenshots to show new images
+            } else {
+              console.error("Failed to fetch missing images:", response?.error);
+            }
+            setIsFetchingImages(false);
+          }
+        );
+      }
+    } catch (error) {
+      console.error("Error fetching missing images:", error);
+      setIsFetchingImages(false);
+    }
+  }, [isFetchingImages, loadScreenshots]);
 
   // if (loading) {
   //   return (
@@ -290,11 +345,21 @@ function BookmarkManager() {
               </h1>
               <p className="hidden md:block text-sm text-white font-bold mt-1">
                 YOUR LINK COLLECTION
-                {/* {isSyncing && (
-                  <span className="ml-2 text-xs opacity-75">(SYNCING...)</span>
-                )} */}
+                {isFetchingImages && (
+                  <span className="ml-2 text-xs opacity-75">
+                    (FETCHING IMAGES: {fetchProgress.processed}/
+                    {fetchProgress.total})
+                  </span>
+                )}
               </p>
             </div>
+            <button
+              onClick={fetchAllMissingImages}
+              disabled={isFetchingImages}
+              className="px-3 py-2 sm:px-4 sm:py-2 font-black text-xs sm:text-sm bg-white text-black border-3 border-black shadow-brutal hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isFetchingImages ? "⏳ FETCHING..." : "🖼️ FETCH ALL IMAGES"}
+            </button>
           </div>
         </div>
 

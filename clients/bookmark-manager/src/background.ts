@@ -53,6 +53,89 @@ async function addVisitedUrl(url: string): Promise<void> {
   });
 }
 
+// Helper function to extract Open Graph image from a tab by injecting a script
+async function extractOgImageFromTab(tabId: number): Promise<string | null> {
+  try {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => {
+        // Helper to get meta content with different selector approaches
+        const getMetaContent = (selectors: string[]): string | null => {
+          for (const selector of selectors) {
+            const element = document.querySelector(selector);
+            if (element) {
+              const content = element.getAttribute('content');
+              if (content) return content;
+            }
+          }
+          return null;
+        };
+
+        // Try multiple ways to find og:image (case-insensitive, different formats)
+        let imageUrl = getMetaContent([
+          'meta[property="og:image"]',
+          'meta[property="og:image:secure_url"]',
+          'meta[property="og:image:url"]',
+          'meta[property="OG:IMAGE"]',
+          'meta[name="og:image"]'
+        ]);
+
+        if (imageUrl) return imageUrl;
+
+        // Try twitter images
+        imageUrl = getMetaContent([
+          'meta[name="twitter:image"]',
+          'meta[name="twitter:image:src"]',
+          'meta[property="twitter:image"]',
+          'meta[property="twitter:image:src"]'
+        ]);
+
+        if (imageUrl) return imageUrl;
+
+        // Last resort: search all meta tags
+        const allMetas = Array.from(document.querySelectorAll('meta'));
+        for (const meta of allMetas) {
+          const property = meta.getAttribute('property')?.toLowerCase();
+          const name = meta.getAttribute('name')?.toLowerCase();
+
+          if (property?.includes('og:image') || name?.includes('og:image') ||
+            property?.includes('twitter:image') || name?.includes('twitter:image')) {
+            const content = meta.getAttribute('content');
+            if (content) return content;
+          }
+        }
+
+        return null;
+      }
+    });
+
+    if (results && results[0] && results[0].result) {
+      let imageUrl = results[0].result as string;
+
+      // Get the tab URL to resolve relative URLs
+      const tab = await chrome.tabs.get(tabId);
+      if (tab.url && imageUrl) {
+        // Handle relative URLs
+        if (imageUrl.startsWith('/')) {
+          const urlObj = new URL(tab.url);
+          imageUrl = urlObj.origin + imageUrl;
+        } else if (!imageUrl.startsWith('http')) {
+          const urlObj = new URL(tab.url);
+          imageUrl = urlObj.origin + '/' + imageUrl;
+        }
+      }
+
+      return imageUrl;
+    }
+
+    console.log('No og:image found in tab');
+    return null;
+  } catch (error) {
+    console.error('Failed to extract og:image from tab:', error);
+    return null;
+  }
+}
+
 // Listen for tab updates to capture screenshots on first visit
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   // Only capture when page is fully loaded
@@ -82,23 +165,24 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
         if (!screenshots[bookmark.id] && !visitedUrls.has(url)) {
           await addVisitedUrl(url);
 
-          // Capture screenshot using chrome.webNavigation or after DOM is ready
+          // Try to extract og:image from the current tab
           try {
-            const dataUrl = await chrome.tabs.captureVisibleTab(undefined, {
-              format: 'jpeg',
-              quality: 50
-            });
+            const ogImageUrl = await extractOgImageFromTab(tabId);
 
-            screenshots[bookmark.id] = {
-              dataUrl,
-              timestamp: Date.now(),
-              url
-            };
+            if (ogImageUrl) {
+              screenshots[bookmark.id] = {
+                dataUrl: ogImageUrl,
+                timestamp: Date.now(),
+                url
+              };
 
-            await chrome.storage.local.set({ screenshots });
-            console.log(`Screenshot captured for bookmark: ${bookmark.title}`);
+              await chrome.storage.local.set({ screenshots });
+              console.log(`OG image extracted for bookmark: ${bookmark.title}`);
+            } else {
+              console.log(`No og:image found for bookmark: ${bookmark.title}`);
+            }
           } catch (error) {
-            console.error('Failed to capture screenshot:', error);
+            console.error('Failed to extract og:image:', error);
           }
         }
       }
@@ -186,89 +270,192 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 
+  if (request.action === 'fetchAllMissingImages') {
+    // Handle bulk fetching of missing images
+    (async () => {
+      try {
+        const result = await chrome.storage.local.get('screenshots');
+        const screenshots: ScreenshotData = (result.screenshots || {}) as ScreenshotData;
+
+        // Get all bookmarks
+        const allBookmarks = await chrome.bookmarks.getTree();
+        const bookmarksList: chrome.bookmarks.BookmarkTreeNode[] = [];
+
+        // Flatten bookmark tree to get all bookmarks
+        const flattenBookmarks = (nodes: chrome.bookmarks.BookmarkTreeNode[]) => {
+          for (const node of nodes) {
+            if (node.url) {
+              bookmarksList.push(node);
+            }
+            if (node.children) {
+              flattenBookmarks(node.children);
+            }
+          }
+        };
+        flattenBookmarks(allBookmarks);
+
+        // Filter bookmarks that don't have images and have valid URLs
+        const missingImages = bookmarksList.filter(
+          bookmark => bookmark.url &&
+            !bookmark.url.startsWith('chrome://') &&
+            !bookmark.url.startsWith('about:') &&
+            !screenshots[bookmark.id]
+        );
+
+        console.log(`Found ${missingImages.length} bookmarks without images`);
+
+        let successCount = 0;
+        let failCount = 0;
+
+        // Process bookmarks in batches to avoid overwhelming the browser
+        const batchSize = 3;
+        for (let i = 0; i < missingImages.length; i += batchSize) {
+          const batch = missingImages.slice(i, i + batchSize);
+
+          await Promise.all(batch.map(async (bookmark) => {
+            try {
+              // Create tab and extract image
+              const tab = await chrome.tabs.create({ url: bookmark.url!, active: false });
+
+              if (!tab.id) {
+                failCount++;
+                return;
+              }
+
+              // Wait for page to load
+              await new Promise<void>((resolve, reject) => {
+                const timeoutId = setTimeout(() => {
+                  chrome.tabs.onUpdated.removeListener(loadListener);
+                  chrome.tabs.remove(tab.id!).catch(() => { });
+                  reject(new Error('Timeout'));
+                }, 20000);
+
+                const loadListener = (tabId: number, changeInfo: any) => {
+                  if (tabId === tab.id && changeInfo.status === 'complete') {
+                    clearTimeout(timeoutId);
+                    chrome.tabs.onUpdated.removeListener(loadListener);
+                    setTimeout(() => resolve(), 500);
+                  }
+                };
+
+                chrome.tabs.onUpdated.addListener(loadListener);
+              });
+
+              // Extract og:image
+              const ogImageUrl = await extractOgImageFromTab(tab.id);
+
+              // Close tab
+              await chrome.tabs.remove(tab.id).catch(() => { });
+
+              if (ogImageUrl) {
+                const currentResult = await chrome.storage.local.get('screenshots');
+                const currentScreenshots: ScreenshotData = (currentResult.screenshots || {}) as ScreenshotData;
+
+                currentScreenshots[bookmark.id] = {
+                  dataUrl: ogImageUrl,
+                  timestamp: Date.now(),
+                  url: bookmark.url!
+                };
+
+                await chrome.storage.local.set({ screenshots: currentScreenshots });
+                successCount++;
+                console.log(`Fetched image for: ${bookmark.title}`);
+              } else {
+                failCount++;
+              }
+            } catch (error) {
+              console.error(`Failed to fetch image for ${bookmark.title}:`, error);
+              failCount++;
+            }
+          }));
+
+          // Send progress update
+          chrome.runtime.sendMessage({
+            action: 'fetchProgress',
+            processed: Math.min(i + batchSize, missingImages.length),
+            total: missingImages.length,
+            success: successCount,
+            failed: failCount
+          }).catch(() => { });
+
+          // Small delay between batches
+          if (i + batchSize < missingImages.length) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+        }
+
+        sendResponse({
+          success: true,
+          total: missingImages.length,
+          successCount,
+          failCount
+        });
+      } catch (error) {
+        console.error('Failed to fetch missing images:', error);
+        sendResponse({ success: false, error: String(error) });
+      }
+    })();
+
+    return true;
+  }
+
   if (request.action === 'captureScreenshot') {
     const { bookmarkId, url } = request;
 
-    // Handle screenshot capture asynchronously
+    // Handle og:image extraction asynchronously
     (async () => {
       try {
-        // First, try to find a tab with this URL
-        const tabs = await chrome.tabs.query({ url });
+        // Always create a new tab to handle redirects properly
+        const tab = await chrome.tabs.create({ url, active: false });
+        const tabId = tab.id;
 
-        if (tabs.length > 0 && tabs[0]?.id && tabs[0]?.windowId) {
-          // Found a tab with this URL, capture it
-          const dataUrl = await chrome.tabs.captureVisibleTab(tabs[0].windowId, {
-            format: 'jpeg',
-            quality: 50
-          });
+        if (!tabId) {
+          sendResponse({ success: false, error: 'Failed to create tab' });
+          return;
+        }
 
-          const result = await chrome.storage.local.get('screenshots');
-          const screenshots: ScreenshotData = result.screenshots || {};
+        // Wait for the tab to fully load (including redirects)
+        await new Promise<void>((resolve, reject) => {
+          const timeoutId = setTimeout(() => {
+            chrome.tabs.onUpdated.removeListener(loadListener);
+            reject(new Error('Timeout waiting for page to load'));
+          }, 20000); // 20 second timeout for redirects
 
-          screenshots[bookmarkId] = {
-            dataUrl,
-            timestamp: Date.now(),
-            url
-          };
-
-          await chrome.storage.local.set({ screenshots });
-          sendResponse({ success: true, dataUrl });
-        } else {
-          // No tab found with this URL, create one and capture it
-          const tab = await chrome.tabs.create({ url, active: false });
-
-          if (!tab.id) {
-            sendResponse({ success: false, error: 'Failed to create tab' });
-            return;
-          }
-
-          // Wait for the tab to load
-          await new Promise<void>((resolve, reject) => {
-            const timeoutId = setTimeout(() => {
+          const loadListener = (updatedTabId: number, changeInfo: any) => {
+            if (updatedTabId === tabId && changeInfo.status === 'complete') {
+              clearTimeout(timeoutId);
               chrome.tabs.onUpdated.removeListener(loadListener);
-              if (tab.id) {
-                chrome.tabs.remove(tab.id).catch(() => { });
-              }
-              reject(new Error('Timeout waiting for page to load'));
-            }, 30000); // 30 second timeout
+              // Add a small delay to ensure meta tags are rendered
+              setTimeout(() => resolve(), 500);
+            }
+          };
 
-            const loadListener = (tabId: number, changeInfo: chrome.tabs.TabChangeInfo) => {
-              if (tabId === tab.id && changeInfo.status === 'complete') {
-                clearTimeout(timeoutId);
-                chrome.tabs.onUpdated.removeListener(loadListener);
-                resolve();
-              }
-            };
+          chrome.tabs.onUpdated.addListener(loadListener);
+        });
 
-            chrome.tabs.onUpdated.addListener(loadListener);
-          });
+        // Extract og:image from the tab (now at the final URL after any redirects)
+        const ogImageUrl = await extractOgImageFromTab(tabId);
 
-          // Capture screenshot
-          const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, {
-            format: 'jpeg',
-            quality: 50
-          });
+        // Always close the tab we created
+        await chrome.tabs.remove(tabId).catch(() => { });
 
+        if (ogImageUrl) {
           const result = await chrome.storage.local.get('screenshots');
-          const screenshots: ScreenshotData = result.screenshots || {};
+          const screenshots: ScreenshotData = (result.screenshots || {}) as ScreenshotData;
 
           screenshots[bookmarkId] = {
-            dataUrl,
+            dataUrl: ogImageUrl,
             timestamp: Date.now(),
             url
           };
 
           await chrome.storage.local.set({ screenshots });
-
-          // Close the tab we created
-          if (tab.id) {
-            await chrome.tabs.remove(tab.id);
-          }
-
-          sendResponse({ success: true, dataUrl });
+          sendResponse({ success: true, dataUrl: ogImageUrl });
+        } else {
+          sendResponse({ success: false, error: 'No og:image found for this URL' });
         }
       } catch (error) {
-        console.error('Failed to capture screenshot:', error);
+        console.error('Failed to extract og:image:', error);
         sendResponse({ success: false, error: String(error) });
       }
     })();
@@ -283,7 +470,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     (async () => {
       try {
         const result = await chrome.storage.local.get('screenshots');
-        const screenshots: ScreenshotData = result.screenshots || {};
+        const screenshots: ScreenshotData = (result.screenshots || {}) as ScreenshotData;
         delete screenshots[bookmarkId];
 
         await chrome.storage.local.set({ screenshots });
