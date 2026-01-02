@@ -5,6 +5,12 @@ import { useTags, useAddTag } from "../db/useTag";
 import { useAddBookmarkTag, useDeleteBookmarkTag } from "../db/useBookmarkTag";
 import { Button } from "@design-system/ui/button";
 import { Card } from "@design-system/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@design-system/ui/dropdown-menu";
 import { EllipsisVertical } from "lucide-react";
 import { Rating } from "./rating";
 import { TagGroup } from "./tag-group";
@@ -31,23 +37,12 @@ export function BookmarkCard({
   formatDate,
   screenshot,
 }: BookmarkCardProps) {
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-
   const updateNoteMutation = useUpdateBookmark();
   const updateRatingMutation = useUpdateBookmark();
   const addTagMutation = useAddTag();
   const addBookmarkTagMutation = useAddBookmarkTag();
   const deleteBookmarkTagMutation = useDeleteBookmarkTag();
   const { data } = useBookmarkById(item.id ?? "");
-
-  // Close menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = () => setOpenMenuId(null);
-    if (openMenuId) {
-      document.addEventListener("click", handleClickOutside);
-      return () => document.removeEventListener("click", handleClickOutside);
-    }
-  }, [openMenuId]);
 
   const handleSaveNote = (note: string) => {
     updateNoteMutation.mutate({
@@ -96,77 +91,72 @@ export function BookmarkCard({
     >
       <div className="flex flex-col h-full gap-2">
         {/* Kebab menu */}
-        <div className="absolute top-2 right-2">
-          <Button
-            onClick={(e) => {
-              e.stopPropagation();
-              setOpenMenuId(openMenuId === item.id ? null : item.id);
-            }}
-            className="flex-col gap-1"
-            variant="default"
-            size="icon"
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            onClick={(e) => e.stopPropagation()}
             aria-label="Bookmark actions menu"
-            aria-expanded={openMenuId === item.id}
-            aria-haspopup="true"
+            className="absolute top-4 right-4"
           >
             <EllipsisVertical />
-          </Button>
-
-          {openMenuId === item.id && (
-            <div
-              className="absolute right-0 mt-1 w-40 border-3 border-black z-10 shadow-brutal"
-              style={{ background: "var(--color-white)" }}
-              role="menu"
-              aria-label="Bookmark actions"
-            >
-              {item.url && (
-                <Button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onCaptureScreenshot(item.id, item.url!);
-                    setOpenMenuId(null);
-                  }}
-                  className="w-full justify-start gap-2 border-b-2 rounded-none"
-                  variant="ghost"
-                  size="sm"
-                  role="menuitem"
-                >
-                  📷 SCREENSHOT
-                </Button>
-              )}
-              {screenshot && (
-                <Button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDeleteScreenshot(item.id);
-                    setOpenMenuId(null);
-                  }}
-                  className="w-full justify-start gap-2 border-b-2 rounded-none"
-                  variant="ghost"
-                  size="sm"
-                  role="menuitem"
-                >
-                  🗑️ DEL SCREENSHOT
-                </Button>
-              )}
-              <Button
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-40">
+            {item.url && (
+              <DropdownMenuItem
                 onClick={(e) => {
                   e.stopPropagation();
-                  onDelete(item.id);
-                  setOpenMenuId(null);
+                  onCaptureScreenshot(item.id, item.url!);
                 }}
-                className="w-full justify-start gap-2 hover:bg-red-100 rounded-none"
-                style={{ color: "var(--color-danger)" }}
-                variant="ghost"
-                size="sm"
-                role="menuitem"
               >
-                ❌ DELETE
-              </Button>
-            </div>
+                📷 SCREENSHOT
+              </DropdownMenuItem>
+            )}
+            {screenshot && (
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDeleteScreenshot(item.id);
+                }}
+              >
+                🗑️ DEL SCREENSHOT
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem
+              variant="destructive"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(item.id);
+              }}
+            >
+              ❌ DELETE
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <div className="flex flex-col gap-1">
+          {/* Title */}
+          <h3
+            className="font-black text-sm sm:text-base cursor-pointer hover:underline pr-8 text-balance"
+            onClick={() => item.url && onOpenBookmark(item.url)}
+            title={item.title || undefined}
+          >
+            {(item.title || "Untitled").toUpperCase()}
+          </h3>
+          {/* URL */}
+          {item.url && (
+            <a
+              href={item.url}
+              onClick={(e) => {
+                e.preventDefault();
+                onOpenBookmark(item.url!);
+              }}
+              className="text-xs font-bold hover:underline block wrap-break-word"
+              title={item.url}
+              style={{ color: "var(--color-primary)" }}
+            >
+              {formatDisplayUrl(item.url)}
+            </a>
           )}
         </div>
-
         {/* Screenshot */}
         {screenshot && (
           <div
@@ -180,31 +170,6 @@ export function BookmarkCard({
               className="w-full h-full object-cover"
             />
           </div>
-        )}
-
-        {/* Title */}
-        <h3
-          className="font-black text-sm sm:text-base mb-1 cursor-pointer hover:underline pr-8"
-          onClick={() => item.url && onOpenBookmark(item.url)}
-          title={item.title || undefined}
-        >
-          {(item.title || "Untitled").toUpperCase()}
-        </h3>
-
-        {/* URL */}
-        {item.url && (
-          <a
-            href={item.url}
-            onClick={(e) => {
-              e.preventDefault();
-              onOpenBookmark(item.url!);
-            }}
-            className="text-xs font-bold hover:underline block mb-2 wrap-break-word"
-            title={item.url}
-            style={{ color: "var(--color-primary)" }}
-          >
-            {formatDisplayUrl(item.url)}
-          </a>
         )}
 
         <Rating

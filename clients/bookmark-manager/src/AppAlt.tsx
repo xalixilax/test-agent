@@ -303,15 +303,16 @@ function BookmarkManager() {
       const dbData = dbBookmarks.find(
         (b) => b.chromeBookmarkId === chromeBookmark.id
       );
+      const screenshotData = screenshots[chromeBookmark.id];
       return {
         ...chromeBookmark,
         note: dbData?.note || undefined,
         rating: dbData?.rating || undefined,
-        screenshot: dbData?.screenshot || undefined,
+        screenshot: screenshotData?.dataUrl || undefined,
         tags: dbData?.tags || [],
       };
     },
-    [dbBookmarks]
+    [dbBookmarks, screenshots]
   );
 
   // For search, we need to flatten and search across all bookmarks
@@ -344,7 +345,7 @@ function BookmarkManager() {
               tag.name.toLowerCase().includes(searchTerm.toLowerCase())
             )
         )
-    : chromeBookmarkQuery.data || [];
+    : (chromeBookmarkQuery.data || []).map(enrichBookmark);
 
   if (chromeBookmarkQuery.isLoading) {
     return (
@@ -371,57 +372,48 @@ function BookmarkManager() {
   }
 
   return (
-    <div
-      className="w-full min-h-screen"
-      style={{ background: "var(--color-bg)" }}
-    >
-      <div className="h-full max-w-7xl mx-auto">
-        {/* Compact header for small screens, larger for desktop */}
-        <div
-          className="p-2 sm:p-4 md:p-6 border-b-4 border-black"
-          style={{ background: "var(--color-primary)" }}
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-lg sm:text-2xl md:text-3xl font-black text-white">
-                BOOKMARKS
-              </h1>
-              <p className="hidden md:block text-sm text-white font-bold mt-1">
-                YOUR LINK COLLECTION
-                {isFetchingImages && (
-                  <span className="ml-2 text-xs opacity-75">
-                    (FETCHING IMAGES: {fetchProgress.processed}/
-                    {fetchProgress.total})
-                  </span>
-                )}
-              </p>
-            </div>
-            <button
-              onClick={fetchAllMissingImages}
-              disabled={isFetchingImages}
-              className="px-3 py-2 sm:px-4 sm:py-2 font-black text-xs sm:text-sm bg-white text-black border-3 border-black shadow-brutal hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isFetchingImages ? "⏳ FETCHING..." : "🖼️ FETCH ALL IMAGES"}
-            </button>
+    <div className="w-full min-h-screen">
+      {/* Compact header for small screens, larger for desktop */}
+      <div className="p-2 sm:p-4 md:p-6 border-b-4 border-black bg-orange-foreground-muted">
+        <div className="flex items-center justify-between mx-auto max-w-7xl">
+          <div>
+            <h1 className="text-lg sm:text-2xl md:text-3xl font-lexend font-black text-foreground ">
+              BOOKMARKS
+            </h1>
+            <p className="hidden md:block text-sm text-foreground font-bold mt-1">
+              YOUR LINK COLLECTION
+              {isFetchingImages && (
+                <span className="ml-2 text-xs opacity-75">
+                  (FETCHING IMAGES: {fetchProgress.processed}/
+                  {fetchProgress.total})
+                </span>
+              )}
+            </p>
           </div>
+          <button
+            onClick={fetchAllMissingImages}
+            disabled={isFetchingImages}
+            className="px-3 py-2 sm:px-4 sm:py-2 font-black text-xs sm:text-sm bg-white text-black border-3 border-black shadow-brutal hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isFetchingImages ? "⏳ FETCHING..." : "🖼️ FETCH ALL IMAGES"}
+          </button>
         </div>
-
-        <div className="p-2 sm:p-4 md:p-6 space-y-3 sm:space-y-4">
-          <Breadcrumb path={breadcrumbs} onNavigate={navigateToBreadcrumb} />
-          <AddBookmark
-            onAdd={handleAddBookmark}
-            currentFolderId={currentFolderId}
-          />
-          <SearchBar searchTerm={searchTerm} onSearch={setSearchTerm} />
-          <BookmarkList
-            items={filteredBookmarks}
-            onDelete={handleDeleteBookmark}
-            onCaptureScreenshot={captureScreenshot}
-            onDeleteScreenshot={deleteScreenshot}
-            onNavigateToFolder={navigateToFolder}
-            isSearching={!!searchTerm}
-          />
-        </div>
+      </div>
+      <div className=" flex flex-col gap-4 h-full max-w-7xl mx-auto my-4">
+        <Breadcrumb path={breadcrumbs} onNavigate={navigateToBreadcrumb} />
+        <AddBookmark
+          onAdd={handleAddBookmark}
+          currentFolderId={currentFolderId}
+        />
+        <SearchBar searchTerm={searchTerm} onSearch={setSearchTerm} />
+        <BookmarkList
+          items={filteredBookmarks}
+          onDelete={handleDeleteBookmark}
+          onCaptureScreenshot={captureScreenshot}
+          onDeleteScreenshot={deleteScreenshot}
+          onNavigateToFolder={navigateToFolder}
+          isSearching={!!searchTerm}
+        />
       </div>
     </div>
   );

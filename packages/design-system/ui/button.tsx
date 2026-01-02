@@ -15,7 +15,7 @@ export const buttonVariants = cva(
     variants: {
       variant: {
         filled: "bg-primary text-primary-foreground hover:bg-primary/80",
-        default: `border-border bg-background dark:bg-input/30 dark:border-input transition transition-translate duration-200 
+        default: `border-border bg-yellow-foreground-muted dark:bg-input/30 dark:border-input transition transition-translate duration-200 
           aria-expanded:bg-muted aria-expanded:text-foreground
           hover:bg-muted hover:shadow-lg hover:translate-[-2px] dark:hover:bg-input/50
           active:translate-[2px] active:shadow-sm`,
