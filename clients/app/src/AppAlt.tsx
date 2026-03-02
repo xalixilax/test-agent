@@ -91,6 +91,12 @@ function BookmarkManager() {
     return parentId;
   };
 
+  const getInitialSearchTerm = () => {
+    const params = new URLSearchParams(window.location.search);
+    const search = params.get("search");
+    return search || "";
+  };
+
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(
     getInitialFolderId
   );
@@ -107,7 +113,7 @@ function BookmarkManager() {
     deleteBookmark,
   } = useBookmarks(currentFolderId);
 
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState(getInitialSearchTerm);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isFetchingImages, setIsFetchingImages] = useState(false);
   const [fetchProgress, setFetchProgress] = useState({
@@ -126,6 +132,17 @@ function BookmarkManager() {
   } = useScreenshots();
 
   // Navigate to a folder and update URL
+  // Update URL when search term changes
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (searchTerm) {
+      url.searchParams.set("search", searchTerm);
+    } else {
+      url.searchParams.delete("search");
+    }
+    window.history.replaceState({}, "", url.toString());
+  }, [searchTerm]);
+
   const navigateToFolder = useCallback(
     (folderId: string | null, folderTitle: string) => {
       setCurrentFolderId(folderId);
@@ -209,8 +226,10 @@ function BookmarkManager() {
     const handlePopState = (event: PopStateEvent) => {
       const params = new URLSearchParams(window.location.search);
       const parentId = params.get("parentId");
+      const search = params.get("search");
 
       setCurrentFolderId(parentId);
+      setSearchTerm(search || "");
 
       // Rebuild breadcrumbs based on current folder
       // You might need to traverse bookmarks to rebuild the full path
