@@ -1,529 +1,481 @@
-// Background service worker for automatic screenshot capture and database management
-import { initDb, db } from './db/db';
-import { createAppRouter } from './routers/appRouters';
-import { createWorkerHandler, type WorkerRequest, type WorkerResponse } from './lib/worker/router';
-import { log, error as logError } from './lib/worker/utils';
+import { initDb, type PGlite } from "./shared/db/pglite";
+import { PgliteMetadataRepository } from "./contexts/metadata/infrastructure/pglite-metadata-repository";
+import { MetadataService } from "./contexts/metadata/application/metadata-service";
+import { migrateLegacyMetadata } from "./contexts/metadata/infrastructure/legacy-migration";
+import { IdentityService } from "./contexts/identity/application/identity-service";
+import { ChromeSessionStore } from "./contexts/identity/infrastructure/chrome-session-store";
+import { HttpSyncApiClient } from "./contexts/sync/infrastructure/http-sync-api-client";
+import { DataKeyCipher } from "./contexts/sync/infrastructure/data-key-cipher";
+import { SystemClock } from "./contexts/sync/infrastructure/system-clock";
+import { SyncEngine } from "./contexts/sync/application/sync-engine";
+import { ImageArchiver } from "./contexts/sync/application/image-archiver";
+import {
+  discoverOgImage,
+  extractOgImageFromTab,
+} from "./contexts/sync/infrastructure/og-image-discovery";
+import { normalizeUrl } from "./contexts/metadata/domain/url";
+import type { MetadataRecordView } from "./contexts/metadata/domain/metadata";
+import {
+  createAppRouter,
+  type AppRouterContext,
+  type CaptureResult,
+  type SyncStatus,
+} from "./routers/appRouters";
+import {
+  createWorkerHandler,
+  type WorkerRequest,
+  type WorkerResponse,
+} from "./shared/rpc/router";
+import { SYNC_API_URL } from "./shared/config";
 
-interface ScreenshotData {
-  [bookmarkId: string]: {
-    dataUrl: string;
-    timestamp: number;
-    url: string;
-  };
+const LAST_SYNC_KEY = "sync.lastAt";
+const LAST_ERROR_KEY = "sync.lastError";
+const VISITED_URLS_KEY = "visitedUrls";
+const AUTO_CAPTURE_DELAY_MS = 2_000;
+
+interface Services {
+  db: PGlite;
+  repository: PgliteMetadataRepository;
+  metadata: MetadataService;
+  identity: IdentityService;
+  sessionStore: ChromeSessionStore;
+  api: HttpSyncApiClient;
+  engine: SyncEngine;
+  archiver: ImageArchiver;
 }
 
-interface VisitedUrlsData {
-  urls: string[];
-}
+let services: Services | null = null;
+let handleRequest:
+  | ((request: WorkerRequest) => Promise<WorkerResponse>)
+  | null = null;
+let syncing = false;
+let backfilling = false;
+let syncTimer: ReturnType<typeof setTimeout> | null = null;
 
-// Database initialization
-let isDbReady = false;
-let handleRequest: ReturnType<typeof createWorkerHandler> | null = null;
+const now = () => Date.now();
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-(async () => {
+const notify = (message: unknown): void => {
+  chrome.runtime.sendMessage(message).catch(() => undefined);
+};
+
+const resolveBookmarkUrl = async (
+  chromeBookmarkId: string,
+): Promise<string | null> => {
   try {
-    console.log('[Background] Initializing database...');
-    await initDb();
-    console.log('[Background] Database initialized successfully');
-
-    const router = createAppRouter({ db, log, error: logError });
-    handleRequest = createWorkerHandler(router);
-
-    isDbReady = true;
-    console.log('[Background] Database ready');
-  } catch (err) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    console.error('[Background] Init failed:', errorMsg);
+    const [node] = await chrome.bookmarks.get(chromeBookmarkId);
+    return node?.url ?? null;
+  } catch {
+    return null;
   }
-})();
+};
 
-// Helper function to get visited URLs from storage
-async function getVisitedUrls(): Promise<Set<string>> {
-  const result = await chrome.storage.local.get('visitedUrls');
-  const data: VisitedUrlsData = (result.visitedUrls || { urls: [] }) as VisitedUrlsData;
-  return new Set(data.urls);
-}
+const getVisitedUrls = async (): Promise<Set<string>> => {
+  const result = await chrome.storage.local.get(VISITED_URLS_KEY);
+  const data = result[VISITED_URLS_KEY] as { urls?: string[] } | undefined;
+  return new Set(data?.urls ?? []);
+};
 
-// Helper function to save visited URLs to storage
-async function addVisitedUrl(url: string): Promise<void> {
-  const visitedUrls = await getVisitedUrls();
-  visitedUrls.add(url);
+const addVisitedUrl = async (url: string): Promise<void> => {
+  const visited = await getVisitedUrls();
+  visited.add(url);
   await chrome.storage.local.set({
-    visitedUrls: { urls: Array.from(visitedUrls) }
+    [VISITED_URLS_KEY]: { urls: Array.from(visited) },
   });
-}
+};
 
-// Helper function to extract Open Graph image from a tab by injecting a script
-async function extractOgImageFromTab(tabId: number): Promise<string | null> {
+const flattenBookmarks = (
+  nodes: chrome.bookmarks.BookmarkTreeNode[],
+): chrome.bookmarks.BookmarkTreeNode[] => {
+  const result: chrome.bookmarks.BookmarkTreeNode[] = [];
+  for (const node of nodes) {
+    if (node.url) result.push(node);
+    if (node.children) result.push(...flattenBookmarks(node.children));
+  }
+  return result;
+};
+
+const isHttpUrl = (url: string): boolean =>
+  url.startsWith("http://") || url.startsWith("https://");
+
+const initServices = async (): Promise<Services> => {
+  const db = await initDb();
+  const repository = new PgliteMetadataRepository(db);
+  const clock = new SystemClock();
+  const sessionStore = new ChromeSessionStore();
+  const api = new HttpSyncApiClient({
+    baseUrl: SYNC_API_URL,
+    getToken: async () => (await sessionStore.get())?.token ?? null,
+  });
+  const metadata = new MetadataService(repository, clock, () => {
+    notify({ action: "dataChanged" });
+    scheduleSync();
+  });
+  const identity = new IdentityService(api, sessionStore);
+  const cipher = new DataKeyCipher(
+    async () => (await sessionStore.get())?.dataKey ?? null,
+  );
+  const engine = new SyncEngine({
+    store: repository,
+    gateway: api,
+    cipher,
+    clock,
+    isEnabled: async () => (await sessionStore.get()) !== null,
+  });
+  const archiver = new ImageArchiver(
+    api,
+    metadata,
+    async () => (await sessionStore.get()) !== null,
+  );
+
+  await migrateLegacyMetadata({
+    db,
+    repository,
+    metadata,
+    resolveBookmarkUrl,
+  });
+
+  return {
+    db,
+    repository,
+    metadata,
+    identity,
+    sessionStore,
+    api,
+    engine,
+    archiver,
+  };
+};
+
+const requireServices = (): Services => {
+  if (!services) throw new Error("Services are not ready");
+  return services;
+};
+
+const buildStatus = async (): Promise<SyncStatus> => {
+  const current = services;
+  if (!current) {
+    return {
+      loggedIn: false,
+      registered: false,
+      reachable: false,
+      apiUrl: SYNC_API_URL,
+      lastSyncAt: null,
+      lastError: null,
+      pendingCount: 0,
+    };
+  }
+
+  const [identityStatus, pendingCount, lastSyncAt, lastError] =
+    await Promise.all([
+      current.identity.status(),
+      current.repository.countDirtyFields(),
+      current.repository.getSyncState(LAST_SYNC_KEY),
+      current.repository.getSyncState(LAST_ERROR_KEY),
+    ]);
+
+  return {
+    loggedIn: identityStatus.loggedIn,
+    registered: identityStatus.registered,
+    reachable: identityStatus.reachable,
+    apiUrl: SYNC_API_URL,
+    lastSyncAt: lastSyncAt ? Number(lastSyncAt) : null,
+    lastError: lastError && lastError !== "" ? lastError : null,
+    pendingCount,
+  };
+};
+
+const runSync = async (): Promise<SyncStatus> => {
+  const current = services;
+  if (!current) return buildStatus();
+  if (syncing) return buildStatus();
+
+  syncing = true;
   try {
-    const results = await chrome.scripting.executeScript({
-      target: { tabId },
-      func: () => {
-        // Helper to get meta content with different selector approaches
-        const getMetaContent = (selectors: string[]): string | null => {
-          for (const selector of selectors) {
-            const element = document.querySelector(selector);
-            if (element) {
-              const content = element.getAttribute('content');
-              if (content) return content;
-            }
-          }
-          return null;
-        };
-
-        // Try multiple ways to find og:image (case-insensitive, different formats)
-        let imageUrl = getMetaContent([
-          'meta[property="og:image"]',
-          'meta[property="og:image:secure_url"]',
-          'meta[property="og:image:url"]',
-          'meta[property="OG:IMAGE"]',
-          'meta[name="og:image"]'
-        ]);
-
-        if (imageUrl) return imageUrl;
-
-        // Try twitter images
-        imageUrl = getMetaContent([
-          'meta[name="twitter:image"]',
-          'meta[name="twitter:image:src"]',
-          'meta[property="twitter:image"]',
-          'meta[property="twitter:image:src"]'
-        ]);
-
-        if (imageUrl) return imageUrl;
-
-        // Last resort: search all meta tags
-        const allMetas = Array.from(document.querySelectorAll('meta'));
-        for (const meta of allMetas) {
-          const property = meta.getAttribute('property')?.toLowerCase();
-          const name = meta.getAttribute('name')?.toLowerCase();
-
-          if (property?.includes('og:image') || name?.includes('og:image') ||
-            property?.includes('twitter:image') || name?.includes('twitter:image')) {
-            const content = meta.getAttribute('content');
-            if (content) return content;
-          }
-        }
-
-        return null;
-      }
-    });
-
-    if (results && results[0] && results[0].result) {
-      let imageUrl = results[0].result as string;
-
-      // Get the tab URL to resolve relative URLs
-      const tab = await chrome.tabs.get(tabId);
-      if (tab.url && imageUrl) {
-        // Handle relative URLs
-        if (imageUrl.startsWith('/')) {
-          const urlObj = new URL(tab.url);
-          imageUrl = urlObj.origin + imageUrl;
-        } else if (!imageUrl.startsWith('http')) {
-          const urlObj = new URL(tab.url);
-          imageUrl = urlObj.origin + '/' + imageUrl;
-        }
-      }
-
-      return imageUrl;
+    const result = await current.engine.syncNow();
+    if (!result.skipped) {
+      await current.repository.setSyncState(LAST_SYNC_KEY, String(now()));
+      await current.repository.setSyncState(
+        LAST_ERROR_KEY,
+        result.errors > 0
+          ? `${result.errors} remote change(s) could not be decrypted`
+          : "",
+      );
+      notify({ action: "dataChanged" });
     }
-
-    console.log('No og:image found in tab');
-    return null;
   } catch (error) {
-    console.error('Failed to extract og:image from tab:', error);
-    return null;
-  }
-}
-
-// Listen for tab updates to capture screenshots on first visit
-chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-  // Only capture when page is fully loaded
-  if (changeInfo.status === 'complete' && tab.url) {
-    const url = tab.url;
-
-    // Skip chrome:// and other special URLs
-    if (url.startsWith('chrome://') || url.startsWith('about:')) {
-      return;
+    const message = error instanceof Error ? error.message : String(error);
+    if (/session|unauthor|401/iu.test(message)) {
+      await current.identity.logout();
+      await current.repository.setSyncState(
+        LAST_ERROR_KEY,
+        "Session expired. Log in again from the SYNC panel.",
+      );
+    } else {
+      await current.repository.setSyncState(LAST_ERROR_KEY, message);
     }
+  } finally {
+    syncing = false;
+  }
 
-    // Check if this URL is a bookmark
+  return buildStatus();
+};
+
+const scheduleSync = (delayMs = AUTO_CAPTURE_DELAY_MS): void => {
+  if (syncTimer) clearTimeout(syncTimer);
+  syncTimer = setTimeout(() => {
+    syncTimer = null;
+    void runSync();
+  }, delayMs);
+};
+
+const listRecordViews = async (): Promise<MetadataRecordView[]> => {
+  const current = requireServices();
+  const records = await current.repository.listRecords();
+  const session = await current.sessionStore.get();
+
+  let signedUrls = new Map<string, string>();
+  if (session) {
+    const items = records
+      .filter((record) => record.imageKey)
+      .map((record) => ({ uuid: record.uuid, key: record.imageKey! }));
+    if (items.length > 0) {
+      try {
+        signedUrls = await current.api.signImageUrls(items);
+      } catch {
+        signedUrls = new Map();
+      }
+    }
+  }
+
+  return records.map((record) => ({
+    ...record,
+    imageUrl: record.imageKey
+      ? signedUrls.get(`${record.uuid}/${record.imageKey}`)
+      : undefined,
+  }));
+};
+
+const captureImage = async (url: string): Promise<CaptureResult> => {
+  const current = requireServices();
+  const screenshotUrl = await discoverOgImage(url);
+  if (!screenshotUrl) return { screenshotUrl: null, imageKey: null };
+
+  await current.metadata.setScreenshotUrl(url, screenshotUrl);
+  const imageKey = await current.archiver.archive(url, screenshotUrl);
+  return { screenshotUrl, imageKey };
+};
+
+const backfillImages = async (): Promise<{ started: boolean }> => {
+  if (backfilling) return { started: false };
+  backfilling = true;
+
+  void (async () => {
     try {
-      const bookmarks = await chrome.bookmarks.search({ url });
+      const current = requireServices();
+      const bookmarks = flattenBookmarks(await chrome.bookmarks.getTree()).filter(
+        (bookmark) => bookmark.url && isHttpUrl(bookmark.url),
+      );
+      const records = await current.repository.listRecords();
+      const byUrl = new Map(
+        records.map((record) => [normalizeUrl(record.url), record]),
+      );
+      const missing = bookmarks.filter(
+        (bookmark) => !byUrl.get(normalizeUrl(bookmark.url!))?.imageKey,
+      );
 
-      if (bookmarks.length > 0) {
-        const bookmark = bookmarks[0];
+      let success = 0;
+      let failed = 0;
+      const batchSize = 3;
 
-        // Check if we already have a screenshot for this bookmark
-        const result = await chrome.storage.local.get('screenshots');
-        const screenshots: ScreenshotData = (result.screenshots || {}) as ScreenshotData;
-
-        // Get visited URLs from storage
-        const visitedUrls = await getVisitedUrls();
-
-        // If no screenshot exists and URL hasn't been visited
-        if (!screenshots[bookmark.id] && !visitedUrls.has(url)) {
-          await addVisitedUrl(url);
-
-          // Try to extract og:image from the current tab
-          try {
-            const ogImageUrl = await extractOgImageFromTab(tabId);
-
-            if (ogImageUrl) {
-              screenshots[bookmark.id] = {
-                dataUrl: ogImageUrl,
-                timestamp: Date.now(),
-                url
-              };
-
-              await chrome.storage.local.set({ screenshots });
-              console.log(`OG image extracted for bookmark: ${bookmark.title}`);
-            } else {
-              console.log(`No og:image found for bookmark: ${bookmark.title}`);
-            }
-          } catch (error) {
-            console.error('Failed to extract og:image:', error);
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Error checking bookmarks:', error);
-    }
-  }
-});
-
-// Listen for messages from popup to manually capture screenshots and handle database operations
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  // Handle database requests
-  if (request.type === 'worker-request') {
-    const workerRequest = request as WorkerRequest;
-
-    (async () => {
-      if (!isDbReady || !handleRequest) {
-        sendResponse({
-          type: 'worker-response',
-          id: workerRequest.id,
-          requestId: workerRequest.requestId || workerRequest.id,
-          success: false,
-          error: 'Database not ready'
-        } as WorkerResponse);
-        return;
-      }
-
-      try {
-        const response = await handleRequest(workerRequest);
-        sendResponse({
-          ...response,
-          type: 'worker-response',
-          requestId: workerRequest.requestId || workerRequest.id
-        });
-      } catch (err) {
-        sendResponse({
-          type: 'worker-response',
-          id: workerRequest.id,
-          requestId: workerRequest.requestId || workerRequest.id,
-          success: false,
-          error: err instanceof Error ? err.message : String(err)
-        } as WorkerResponse);
-      }
-    })();
-
-    return true; // Keep message channel open for async response
-  }
-
-  if (request.action === 'getCurrentTab') {
-    // Get current active tab and check if it's bookmarked
-    (async () => {
-      try {
-        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-        if (tabs.length > 0 && tabs[0].url) {
-          const url = tabs[0].url;
-          const bookmarks = await chrome.bookmarks.search({ url });
-
-          if (bookmarks.length > 0) {
-            const bookmark = bookmarks[0];
-            const result = await chrome.storage.local.get('screenshots');
-            const screenshots: ScreenshotData = (result.screenshots || {}) as ScreenshotData;
-
-            sendResponse({
-              success: true,
-              isBookmarked: true,
-              bookmark: {
-                chromeBookmarkId: bookmark.id,
-                title: bookmark.title,
-                url: bookmark.url,
-                hasScreenshot: !!screenshots[bookmark.id]
-              }
-            });
-          } else {
-            sendResponse({ success: true, isBookmarked: false });
-          }
-        } else {
-          sendResponse({ success: false, error: 'No active tab found' });
-        }
-      } catch (error) {
-        console.error('Failed to get current tab:', error);
-        sendResponse({ success: false, error: String(error) });
-      }
-    })();
-
-    return true;
-  }
-
-  if (request.action === 'fetchAllMissingImages') {
-    // Handle bulk fetching of missing images
-    (async () => {
-      try {
-        const result = await chrome.storage.local.get('screenshots');
-        const screenshots: ScreenshotData = (result.screenshots || {}) as ScreenshotData;
-
-        // Get all bookmarks
-        const allBookmarks = await chrome.bookmarks.getTree();
-        const bookmarksList: chrome.bookmarks.BookmarkTreeNode[] = [];
-
-        // Flatten bookmark tree to get all bookmarks
-        const flattenBookmarks = (nodes: chrome.bookmarks.BookmarkTreeNode[]) => {
-          for (const node of nodes) {
-            if (node.url) {
-              bookmarksList.push(node);
-            }
-            if (node.children) {
-              flattenBookmarks(node.children);
-            }
-          }
-        };
-        flattenBookmarks(allBookmarks);
-
-        // Filter bookmarks that don't have images and have valid URLs
-        const missingImages = bookmarksList.filter(
-          bookmark => bookmark.url &&
-            !bookmark.url.startsWith('chrome://') &&
-            !bookmark.url.startsWith('about:') &&
-            !screenshots[bookmark.id]
-        );
-
-        console.log(`Found ${missingImages.length} bookmarks without images`);
-
-        let successCount = 0;
-        let failCount = 0;
-
-        // Process bookmarks in batches to avoid overwhelming the browser
-        const batchSize = 3;
-        for (let i = 0; i < missingImages.length; i += batchSize) {
-          const batch = missingImages.slice(i, i + batchSize);
-
-          await Promise.all(batch.map(async (bookmark) => {
+      for (let i = 0; i < missing.length; i += batchSize) {
+        const batch = missing.slice(i, i + batchSize);
+        await Promise.all(
+          batch.map(async (bookmark) => {
+            const url = bookmark.url!;
             try {
-              // Create tab and extract image
-              const tab = await chrome.tabs.create({ url: bookmark.url!, active: false });
-
-              if (!tab.id) {
-                failCount++;
+              let imageUrl =
+                byUrl.get(normalizeUrl(url))?.screenshotUrl ?? null;
+              if (!imageUrl) {
+                imageUrl = await discoverOgImage(url);
+                if (imageUrl) {
+                  await current.metadata.setScreenshotUrl(url, imageUrl);
+                }
+              }
+              if (!imageUrl) {
+                failed += 1;
                 return;
               }
-
-              // Wait for page to load
-              await new Promise<void>((resolve, reject) => {
-                const timeoutId = setTimeout(() => {
-                  chrome.tabs.onUpdated.removeListener(loadListener);
-                  chrome.tabs.remove(tab.id!).catch(() => { });
-                  reject(new Error('Timeout'));
-                }, 20000);
-
-                const loadListener = (tabId: number, changeInfo: any) => {
-                  if (tabId === tab.id && changeInfo.status === 'complete') {
-                    clearTimeout(timeoutId);
-                    chrome.tabs.onUpdated.removeListener(loadListener);
-                    setTimeout(() => resolve(), 500);
-                  }
-                };
-
-                chrome.tabs.onUpdated.addListener(loadListener);
-              });
-
-              // Extract og:image
-              const ogImageUrl = await extractOgImageFromTab(tab.id);
-
-              // Close tab
-              await chrome.tabs.remove(tab.id).catch(() => { });
-
-              if (ogImageUrl) {
-                const currentResult = await chrome.storage.local.get('screenshots');
-                const currentScreenshots: ScreenshotData = (currentResult.screenshots || {}) as ScreenshotData;
-
-                currentScreenshots[bookmark.id] = {
-                  dataUrl: ogImageUrl,
-                  timestamp: Date.now(),
-                  url: bookmark.url!
-                };
-
-                await chrome.storage.local.set({ screenshots: currentScreenshots });
-                successCount++;
-                console.log(`Fetched image for: ${bookmark.title}`);
-              } else {
-                failCount++;
-              }
-            } catch (error) {
-              console.error(`Failed to fetch image for ${bookmark.title}:`, error);
-              failCount++;
+              await current.archiver.archive(url, imageUrl);
+              success += 1;
+            } catch {
+              failed += 1;
             }
-          }));
+          }),
+        );
 
-          // Send progress update
-          chrome.runtime.sendMessage({
-            action: 'fetchProgress',
-            processed: Math.min(i + batchSize, missingImages.length),
-            total: missingImages.length,
-            success: successCount,
-            failed: failCount
-          }).catch(() => { });
-
-          // Small delay between batches
-          if (i + batchSize < missingImages.length) {
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          }
-        }
-
-        sendResponse({
-          success: true,
-          total: missingImages.length,
-          successCount,
-          failCount
-        });
-      } catch (error) {
-        console.error('Failed to fetch missing images:', error);
-        sendResponse({ success: false, error: String(error) });
-      }
-    })();
-
-    return true;
-  }
-
-  if (request.action === 'captureScreenshot') {
-    const { bookmarkId, url } = request;
-
-    // Handle og:image extraction asynchronously
-    (async () => {
-      try {
-        // Always create a new tab to handle redirects properly
-        const tab = await chrome.tabs.create({ url, active: false });
-        const tabId = tab.id;
-
-        if (!tabId) {
-          sendResponse({ success: false, error: 'Failed to create tab' });
-          return;
-        }
-
-        // Wait for the tab to fully load (including redirects)
-        await new Promise<void>((resolve, reject) => {
-          const timeoutId = setTimeout(() => {
-            chrome.tabs.onUpdated.removeListener(loadListener);
-            reject(new Error('Timeout waiting for page to load'));
-          }, 20000); // 20 second timeout for redirects
-
-          const loadListener = (updatedTabId: number, changeInfo: any) => {
-            if (updatedTabId === tabId && changeInfo.status === 'complete') {
-              clearTimeout(timeoutId);
-              chrome.tabs.onUpdated.removeListener(loadListener);
-              // Add a small delay to ensure meta tags are rendered
-              setTimeout(() => resolve(), 500);
-            }
-          };
-
-          chrome.tabs.onUpdated.addListener(loadListener);
+        notify({
+          action: "fetchProgress",
+          processed: Math.min(i + batchSize, missing.length),
+          total: missing.length,
+          success,
+          failed,
         });
 
-        // Extract og:image from the tab (now at the final URL after any redirects)
-        const ogImageUrl = await extractOgImageFromTab(tabId);
-
-        // Always close the tab we created
-        await chrome.tabs.remove(tabId).catch(() => { });
-
-        if (ogImageUrl) {
-          const result = await chrome.storage.local.get('screenshots');
-          const screenshots: ScreenshotData = (result.screenshots || {}) as ScreenshotData;
-
-          screenshots[bookmarkId] = {
-            dataUrl: ogImageUrl,
-            timestamp: Date.now(),
-            url
-          };
-
-          await chrome.storage.local.set({ screenshots });
-          sendResponse({ success: true, dataUrl: ogImageUrl });
-        } else {
-          sendResponse({ success: false, error: 'No og:image found for this URL' });
-        }
-      } catch (error) {
-        console.error('Failed to extract og:image:', error);
-        sendResponse({ success: false, error: String(error) });
+        if (i + batchSize < missing.length) await delay(1_000);
       }
-    })();
+    } finally {
+      backfilling = false;
+    }
+  })();
 
-    // Return true to indicate we'll send response asynchronously
-    return true;
+  return { started: true };
+};
+
+const buildContext = (current: Services): AppRouterContext => ({
+  listRecords: listRecordViews,
+  findByUrl: (url) => current.repository.findByUrl(url),
+  setNote: (url, note) => current.metadata.setNote(url, note),
+  setRating: (url, rating) => current.metadata.setRating(url, rating),
+  setTags: (url, tags) => current.metadata.setTags(url, tags),
+  clearScreenshot: (url) => current.metadata.clearScreenshot(url),
+  purgeMetadata: (url) => current.metadata.purge(url),
+  captureImage,
+  backfillImages,
+  syncNow: runSync,
+  status: buildStatus,
+  identityStatus: () => current.identity.status(),
+  register: async (password, inviteCode) => {
+    await current.identity.register(password, inviteCode);
+    await runSync();
+    void backfillImages();
+  },
+  login: async (password) => {
+    await current.identity.login(password);
+    await runSync();
+    void backfillImages();
+  },
+  logout: () => current.identity.logout(),
+  changePassword: (newPassword) => current.identity.changePassword(newPassword),
+});
+
+const ready = initServices()
+  .then((current) => {
+    services = current;
+    handleRequest = createWorkerHandler(createAppRouter(buildContext(current)));
+    return current;
+  })
+  .catch((error: unknown) => {
+    console.error(
+      "[background] init failed",
+      error instanceof Error ? error.message : error,
+    );
+    throw error;
+  });
+
+chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
+  if (request.type !== "worker-request") return false;
+
+  const workerRequest = request as WorkerRequest;
+  void ready
+    .then(() => handleRequest?.(workerRequest))
+    .then((response) => {
+      sendResponse({
+        ...response,
+        type: "worker-response",
+        requestId: workerRequest.requestId ?? workerRequest.id,
+      });
+    })
+    .catch((error: unknown) => {
+      sendResponse({
+        type: "worker-response",
+        id: workerRequest.id,
+        requestId: workerRequest.requestId ?? workerRequest.id,
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      } as WorkerResponse);
+    });
+
+  return true;
+});
+
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+  if (changeInfo.status !== "complete" || !tab.url) return;
+  if (!isHttpUrl(tab.url)) return;
+
+  try {
+    const current = services;
+    if (!current) return;
+
+    const bookmarks = await chrome.bookmarks.search({ url: tab.url });
+    if (bookmarks.length === 0) return;
+
+    const record = await current.repository.findByUrl(tab.url);
+    if (record?.screenshotUrl || record?.imageKey) return;
+
+    const visited = await getVisitedUrls();
+    if (visited.has(tab.url)) return;
+    await addVisitedUrl(tab.url);
+
+    const screenshotUrl = await extractOgImageFromTab(tabId);
+    if (!screenshotUrl) return;
+
+    await current.metadata.setScreenshotUrl(tab.url, screenshotUrl);
+    await current.archiver.archive(tab.url, screenshotUrl);
+  } catch (error) {
+    console.error("[background] auto capture failed", error);
   }
+});
 
-  if (request.action === 'deleteScreenshot') {
-    const { bookmarkId } = request;
-
-    (async () => {
-      try {
-        const result = await chrome.storage.local.get('screenshots');
-        const screenshots: ScreenshotData = (result.screenshots || {}) as ScreenshotData;
-        delete screenshots[bookmarkId];
-
-        await chrome.storage.local.set({ screenshots });
-        sendResponse({ success: true });
-      } catch (error) {
-        console.error('Failed to delete screenshot:', error);
-        sendResponse({ success: false, error: String(error) });
+chrome.bookmarks.onRemoved.addListener(async (_id, removeInfo) => {
+  try {
+    const current = services;
+    const url = removeInfo.node.url;
+    if (current && url) {
+      const remaining = await chrome.bookmarks.search({ url });
+      if (remaining.length === 0) {
+        await current.metadata.purge(url);
+        void runSync();
       }
-    })();
-
-    return true;
-  }
-
-  // Return false for unknown actions
-  return false;
-});
-
-// Clean up old visited URLs periodically using chrome.alarms API
-chrome.alarms.create('cleanupVisitedUrls', { periodInMinutes: 30 });
-
-chrome.alarms.onAlarm.addListener(async (alarm) => {
-  if (alarm.name === 'cleanupVisitedUrls') {
-    // Clear visited URLs cache to allow re-capturing screenshots
-    await chrome.storage.local.set({ visitedUrls: { urls: [] } });
-    console.log('Cleared visited URLs cache');
+    }
+  } finally {
+    notify({ action: "bookmarkChanged" });
   }
 });
 
-// Listen for Chrome bookmark events to trigger re-sync
-chrome.bookmarks.onCreated.addListener(() => {
-  console.log('Bookmark created, triggering sync...');
-  chrome.runtime.sendMessage({ action: 'bookmarkChanged' }).catch(() => {
-    // Ignore errors if popup isn't open
-  });
+for (const event of [
+  chrome.bookmarks.onCreated,
+  chrome.bookmarks.onChanged,
+  chrome.bookmarks.onMoved,
+]) {
+  event.addListener(() => notify({ action: "bookmarkChanged" }));
+}
+
+const ensureAlarms = async (): Promise<void> => {
+  // chrome.alarms.create replaces an existing alarm and restarts its period,
+  // so only create when missing.
+  if (!(await chrome.alarms.get("sync"))) {
+    await chrome.alarms.create("sync", { periodInMinutes: 1 });
+  }
+  if (!(await chrome.alarms.get("cleanupVisitedUrls"))) {
+    await chrome.alarms.create("cleanupVisitedUrls", { periodInMinutes: 30 });
+  }
+};
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === "sync") void runSync();
+  if (alarm.name === "cleanupVisitedUrls") {
+    void chrome.storage.local.set({ [VISITED_URLS_KEY]: { urls: [] } });
+  }
 });
 
-chrome.bookmarks.onRemoved.addListener(() => {
-  console.log('Bookmark removed, triggering sync...');
-  chrome.runtime.sendMessage({ action: 'bookmarkChanged' }).catch(() => {
-    // Ignore errors if popup isn't open
-  });
+chrome.runtime.onStartup.addListener(() => {
+  void ready.then(ensureAlarms).then(() => runSync());
 });
 
-chrome.bookmarks.onChanged.addListener(() => {
-  console.log('Bookmark changed, triggering sync...');
-  chrome.runtime.sendMessage({ action: 'bookmarkChanged' }).catch(() => {
-    // Ignore errors if popup isn't open
-  });
+chrome.runtime.onInstalled.addListener(() => {
+  void ready.then(ensureAlarms).then(() => runSync());
 });
 
-chrome.bookmarks.onMoved.addListener(() => {
-  console.log('Bookmark moved, triggering sync...');
-  chrome.runtime.sendMessage({ action: 'bookmarkChanged' }).catch(() => {
-    // Ignore errors if popup isn't open
-  });
-});
+void ready.then(ensureAlarms);
+void ready;

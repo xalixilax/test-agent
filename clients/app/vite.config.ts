@@ -72,17 +72,15 @@ export default defineConfig({
 		minify: 'esbuild',
 		target: 'esnext',
 		rollupOptions: {
-			cache: true,
 			input: {
 				index: resolve(__dirname, "index.html"),
 				popup: resolve(__dirname, "popup.html"),
 				background: resolve(__dirname, "src/background.ts"),
-				worker: resolve(__dirname, "src/worker.ts"),
 			},	
 			output: {
 				entryFileNames: (chunkInfo) => {
-					// Keep background.js and worker.js at root level
-					if (chunkInfo.name === "background" || chunkInfo.name === "worker") {
+					// Keep background.js at root level
+					if (chunkInfo.name === "background") {
 						return "[name].js";
 					}
 					return "assets/[name]-[hash].js";
