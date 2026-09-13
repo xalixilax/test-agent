@@ -33,7 +33,7 @@ function AddBookmark({ onAdd, currentFolderId }: AddBookmarkProps) {
           }}
           className="flex-1"
         >
-          + ADD BOOKMARK
+          + ADD BOOKMARK 2
         </Button>
         <Button
           onClick={() => {
