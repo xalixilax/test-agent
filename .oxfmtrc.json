@@ -1,0 +1,9 @@
+{
+  "ignorePatterns": [
+    "packages/design-system/**",
+    ".agents/**",
+    ".github/**",
+    "**/*.md",
+    "pnpm-lock.yaml"
+  ]
+}

@@ -9,9 +9,7 @@ describe("normalizeUrl", () => {
   });
 
   it("keeps query strings as part of identity", () => {
-    expect(normalizeUrl("https://a.com/page?a=1")).not.toBe(
-      normalizeUrl("https://a.com/page?a=2"),
-    );
+    expect(normalizeUrl("https://a.com/page?a=1")).not.toBe(normalizeUrl("https://a.com/page?a=2"));
   });
 
   it("treats a bare origin and a root slash as the same page", () => {

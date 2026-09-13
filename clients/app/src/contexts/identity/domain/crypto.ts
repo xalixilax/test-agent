@@ -1,9 +1,4 @@
-import {
-  fromBase64,
-  randomBytes,
-  sha256Hex,
-  toBase64,
-} from "@/shared/crypto/encoding";
+import { fromBase64, randomBytes, sha256Hex, toBase64 } from "@/shared/crypto/encoding";
 
 const encoder = new TextEncoder();
 
@@ -11,7 +6,7 @@ export const generateSalt = (): string => toBase64(randomBytes(16));
 
 export const generateDataKey = (): string => toBase64(randomBytes(32));
 
-export const PBKDF2_ITERATIONS = 600_000;
+const PBKDF2_ITERATIONS = 600_000;
 
 export interface DerivedKeys {
   authHash: string;
@@ -48,9 +43,7 @@ const hkdf = async (
   info: string,
   lengthBytes: number,
 ): Promise<Uint8Array<ArrayBuffer>> => {
-  const key = await crypto.subtle.importKey("raw", masterKey, "HKDF", false, [
-    "deriveBits",
-  ]);
+  const key = await crypto.subtle.importKey("raw", masterKey, "HKDF", false, ["deriveBits"]);
   const bits = await crypto.subtle.deriveBits(
     {
       name: "HKDF",
@@ -85,17 +78,10 @@ const importDataKey = (dataKeyBase64: string): Promise<CryptoKey> =>
     "decrypt",
   ]);
 
-export const wrapDataKey = async (
-  kek: CryptoKey,
-  dataKeyBase64: string,
-): Promise<string> => {
+const seal = async (key: CryptoKey, plaintext: BufferSource): Promise<string> => {
   const iv = randomBytes(12);
   const ciphertext = new Uint8Array(
-    await crypto.subtle.encrypt(
-      { name: "AES-GCM", iv },
-      kek,
-      fromBase64(dataKeyBase64),
-    ),
+    await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, plaintext),
   );
   const combined = new Uint8Array(iv.length + ciphertext.length);
   combined.set(iv);
@@ -103,52 +89,25 @@ export const wrapDataKey = async (
   return toBase64(combined);
 };
 
-export const unwrapDataKey = async (
-  kek: CryptoKey,
-  wrappedKeyBase64: string,
-): Promise<string> => {
-  const combined = fromBase64(wrappedKeyBase64);
+const open = async (key: CryptoKey, payloadBase64: string): Promise<Uint8Array<ArrayBuffer>> => {
+  const combined = fromBase64(payloadBase64);
   const iv = combined.slice(0, 12);
   const ciphertext = combined.slice(12);
-  const plaintext = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv },
-    kek,
-    ciphertext,
-  );
-  return toBase64(new Uint8Array(plaintext));
+  const plaintext = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ciphertext);
+  return new Uint8Array(plaintext);
 };
 
-export const encryptField = async (
-  dataKeyBase64: string,
-  plaintext: string,
-): Promise<string> => {
-  const key = await importDataKey(dataKeyBase64);
-  const iv = randomBytes(12);
-  const ciphertext = new Uint8Array(
-    await crypto.subtle.encrypt(
-      { name: "AES-GCM", iv },
-      key,
-      encoder.encode(plaintext),
-    ),
-  );
-  const combined = new Uint8Array(iv.length + ciphertext.length);
-  combined.set(iv);
-  combined.set(ciphertext, iv.length);
-  return toBase64(combined);
-};
+export const wrapDataKey = async (kek: CryptoKey, dataKeyBase64: string): Promise<string> =>
+  seal(kek, fromBase64(dataKeyBase64));
+
+export const unwrapDataKey = async (kek: CryptoKey, wrappedKeyBase64: string): Promise<string> =>
+  toBase64(await open(kek, wrappedKeyBase64));
+
+export const encryptField = async (dataKeyBase64: string, plaintext: string): Promise<string> =>
+  seal(await importDataKey(dataKeyBase64), encoder.encode(plaintext));
 
 export const decryptField = async (
   dataKeyBase64: string,
   ciphertextBase64: string,
-): Promise<string> => {
-  const key = await importDataKey(dataKeyBase64);
-  const combined = fromBase64(ciphertextBase64);
-  const iv = combined.slice(0, 12);
-  const ciphertext = combined.slice(12);
-  const plaintext = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv },
-    key,
-    ciphertext,
-  );
-  return new TextDecoder().decode(plaintext);
-};
+): Promise<string> =>
+  new TextDecoder().decode(await open(await importDataKey(dataKeyBase64), ciphertextBase64));

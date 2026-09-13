@@ -1,17 +1,12 @@
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-} from "@design-system/ui/input-group";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@design-system/ui/input-group";
 import { Search, X } from "lucide-react";
 
 interface SearchBarProps {
   searchTerm: string;
   onSearch: (term: string) => void;
-  compact?: boolean;
 }
 
-function SearchBar({ searchTerm, onSearch, compact = false }: SearchBarProps) {
+function SearchBar({ searchTerm, onSearch }: SearchBarProps) {
   return (
     <div className="relative">
       <InputGroup>

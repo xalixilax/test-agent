@@ -1,0 +1,11 @@
+{
+  "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
+  "ignorePatterns": ["packages/design-system/**", ".agents/**"],
+  "entry": ["clients/app/src/lib/utils.ts"],
+  "health": {
+    // fallow's gate runs without coverage data, so CRAP is estimated and every
+    // internal helper counts as untested. Keep the default cyclomatic (20) and
+    // cognitive (15) ceilings; use CRAP as a coarse net only.
+    "maxCrap": 100,
+  },
+}

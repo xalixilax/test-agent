@@ -67,9 +67,7 @@ export class InMemoryFieldStore implements FieldStore {
   }
 
   async listSince(since: number, limit: number) {
-    return this.changes
-      .filter((change) => change.seq > since)
-      .slice(0, limit);
+    return this.changes.filter((change) => change.seq > since).slice(0, limit);
   }
 }
 
@@ -85,7 +83,7 @@ export class InMemoryBlobStore implements BlobStore {
   }
 
   async deletePrefix(prefix: string) {
-    for (const key of [...this.objects.keys()]) {
+    for (const key of this.objects.keys()) {
       if (key.startsWith(prefix)) this.objects.delete(key);
     }
   }

@@ -39,9 +39,7 @@ const errorMessage = (body: unknown, status: number): string => {
   return parsed.success ? parsed.data.error : `Sync API error ${status}`;
 };
 
-export class HttpSyncApiClient
-  implements AuthGateway, SyncGateway, ImageGateway
-{
+export class HttpSyncApiClient implements AuthGateway, SyncGateway, ImageGateway {
   private readonly baseUrl: string;
   private readonly getToken: () => Promise<string | null>;
   private readonly fetchFn: typeof fetch;
@@ -68,8 +66,7 @@ export class HttpSyncApiClient
     }
 
     const headers = new Headers({ "content-type": "application/json" });
-    const token =
-      options.token !== undefined ? options.token : await this.getToken();
+    const token = options.token !== undefined ? options.token : await this.getToken();
     if (token) {
       headers.set("authorization", `Bearer ${token}`);
     }
@@ -77,8 +74,7 @@ export class HttpSyncApiClient
     const response = await this.fetchFn(url.toString(), {
       method: options.method ?? "GET",
       headers,
-      body:
-        options.body === undefined ? undefined : JSON.stringify(options.body),
+      body: options.body === undefined ? undefined : JSON.stringify(options.body),
     });
 
     const body: unknown = await response.json().catch(() => null);
@@ -110,9 +106,7 @@ export class HttpSyncApiClient
     });
   }
 
-  async changePassword(
-    input: ChangePasswordRequest & { token: string },
-  ): Promise<void> {
+  async changePassword(input: ChangePasswordRequest & { token: string }): Promise<void> {
     await this.request("/auth/password", okResponseSchema, {
       method: "POST",
       token: input.token,
@@ -131,25 +125,17 @@ export class HttpSyncApiClient
     });
   }
 
-  async pull(
-    since: number,
-  ): Promise<{ changes: RemoteField[]; seq: number; serverTime: number }> {
+  async pull(since: number): Promise<{ changes: RemoteField[]; seq: number; serverTime: number }> {
     return this.request("/sync", syncPullResponseSchema, {
       query: { since: String(since) },
     });
   }
 
-  async push(
-    fields: FieldEnvelope[],
-  ): Promise<{ accepted: number; serverTime: number }> {
-    const response: SyncPushResponse = await this.request(
-      "/sync",
-      syncPushResponseSchema,
-      {
-        method: "POST",
-        body: syncPushRequestSchema.parse({ fields }),
-      },
-    );
+  async push(fields: FieldEnvelope[]): Promise<{ accepted: number; serverTime: number }> {
+    const response: SyncPushResponse = await this.request("/sync", syncPushResponseSchema, {
+      method: "POST",
+      body: syncPushRequestSchema.parse({ fields }),
+    });
     return response;
   }
 
@@ -160,16 +146,12 @@ export class HttpSyncApiClient
     });
   }
 
-  async signImageUrls(
-    input: SignImagesRequest["items"],
-  ): Promise<Map<string, string>> {
+  async signImageUrls(input: SignImagesRequest["items"]): Promise<Map<string, string>> {
     if (input.length === 0) return new Map();
     const response = await this.request("/images/sign", signImagesResponseSchema, {
       method: "POST",
       body: signImagesRequestSchema.parse({ items: input }),
     });
-    return new Map(
-      response.urls.map((item) => [`${item.uuid}/${item.key}`, item.url]),
-    );
+    return new Map(response.urls.map((item) => [`${item.uuid}/${item.key}`, item.url]));
   }
 }

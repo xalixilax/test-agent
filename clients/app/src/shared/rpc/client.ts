@@ -1,17 +1,9 @@
-import type {
-  InferInput,
-  InferOutput,
-  Procedure,
-  WorkerRequest,
-  WorkerResponse,
-} from "./router";
+import type { InferInput, InferOutput, Procedure, WorkerRequest, WorkerResponse } from "./router";
 
 type EventListener = (data: unknown) => void;
 type ErrorListener = (error: Error) => void;
 
-export class WorkerClient<
-  TRouter extends Record<string, Procedure<any, any>>,
-> {
+class WorkerClient<TRouter extends Record<string, Procedure<any, any>>> {
   private requestId = 0;
   private pendingRequests = new Map<
     string,
@@ -101,30 +93,23 @@ type RouteHelper<
 > = {
   query: [InferInput<TRouter[TRoute]>] extends [void]
     ? (input?: undefined) => Promise<InferOutput<TRouter[TRoute]>>
-    : (
-        input: InferInput<TRouter[TRoute]>,
-      ) => Promise<InferOutput<TRouter[TRoute]>>;
+    : (input: InferInput<TRouter[TRoute]>) => Promise<InferOutput<TRouter[TRoute]>>;
   mutate: [InferInput<TRouter[TRoute]>] extends [void]
     ? (input?: undefined) => Promise<InferOutput<TRouter[TRoute]>>
-    : (
-        input: InferInput<TRouter[TRoute]>,
-      ) => Promise<InferOutput<TRouter[TRoute]>>;
+    : (input: InferInput<TRouter[TRoute]>) => Promise<InferOutput<TRouter[TRoute]>>;
 };
 
-export type EnhancedWorkerClient<
-  TRouter extends Record<string, Procedure<unknown, unknown>>,
-> = WorkerClient<TRouter> & {
-  [K in keyof TRouter]: RouteHelper<TRouter, K>;
-};
+export type EnhancedWorkerClient<TRouter extends Record<string, Procedure<unknown, unknown>>> =
+  WorkerClient<TRouter> & {
+    [K in keyof TRouter]: RouteHelper<TRouter, K>;
+  };
 
 const workerClientInstances = new Map<
   string,
   EnhancedWorkerClient<Record<string, Procedure<unknown, unknown>>>
 >();
 
-export const createWorkerClient = <
-  TRouter extends Record<string, Procedure<any, any>>,
->(
+export const createWorkerClient = <TRouter extends Record<string, Procedure<any, any>>>(
   workerUrl: string = "/worker.js",
 ): EnhancedWorkerClient<TRouter> => {
   if (!workerClientInstances.has(workerUrl)) {
@@ -137,10 +122,8 @@ export const createWorkerClient = <
         }
 
         return {
-          query: (input?: unknown) =>
-            target.request(prop as keyof TRouter, input as any),
-          mutate: (input?: unknown) =>
-            target.mutate(prop as keyof TRouter, input as any),
+          query: (input?: unknown) => target.request(prop as keyof TRouter, input as any),
+          mutate: (input?: unknown) => target.mutate(prop as keyof TRouter, input as any),
         };
       },
     }) as EnhancedWorkerClient<TRouter>;

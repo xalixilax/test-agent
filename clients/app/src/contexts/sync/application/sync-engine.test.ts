@@ -60,8 +60,7 @@ class FakeGateway implements SyncGateway {
 
   async push(fields: FieldEnvelope[]) {
     this.pushedBatches.push(fields);
-    const accepted =
-      this.acceptedPerBatch[this.pushedBatches.length - 1] ?? fields.length;
+    const accepted = this.acceptedPerBatch[this.pushedBatches.length - 1] ?? fields.length;
     return { accepted, serverTime: 1_000 };
   }
 
@@ -206,17 +205,14 @@ describe("SyncEngine", () => {
 
   it("chunks large dirty sets into multiple pushes", async () => {
     const store = new InMemoryStore();
-    store.dirty = Array.from(
-      { length: PUSH_BATCH_SIZE + 1 },
-      (_, index): DirtyField => ({
-        uuid: `u${index}`,
-        field: "note",
-        value: `note ${index}`,
-        updatedAt: index,
-        deviceId: "device-a",
-        deleted: false,
-      }),
-    );
+    store.dirty = Array.from({ length: PUSH_BATCH_SIZE + 1 }, (_, index): DirtyField => ({
+      uuid: `u${index}`,
+      field: "note",
+      value: `note ${index}`,
+      updatedAt: index,
+      deviceId: "device-a",
+      deleted: false,
+    }));
     const gateway = new FakeGateway();
     const engine = new SyncEngine({
       store,

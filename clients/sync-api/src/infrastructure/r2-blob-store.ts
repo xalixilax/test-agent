@@ -3,25 +3,18 @@ import type { BlobStore } from "../application/ports";
 export class R2BlobStore implements BlobStore {
   constructor(private readonly bucket: R2Bucket) {}
 
-  async put(
-    key: string,
-    bytes: ArrayBuffer,
-    contentType: string,
-  ): Promise<void> {
+  async put(key: string, bytes: ArrayBuffer, contentType: string): Promise<void> {
     await this.bucket.put(key, bytes, {
       httpMetadata: { contentType },
     });
   }
 
-  async get(
-    key: string,
-  ): Promise<{ bytes: ArrayBuffer; contentType: string } | null> {
+  async get(key: string): Promise<{ bytes: ArrayBuffer; contentType: string } | null> {
     const object = await this.bucket.get(key);
     if (!object) return null;
     return {
       bytes: await object.arrayBuffer(),
-      contentType:
-        object.httpMetadata?.contentType ?? "application/octet-stream",
+      contentType: object.httpMetadata?.contentType ?? "application/octet-stream",
     };
   }
 

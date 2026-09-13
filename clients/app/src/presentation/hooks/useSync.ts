@@ -12,15 +12,7 @@ export const useSyncStatus = () =>
     refetchInterval: 10_000,
   });
 
-export const useIdentityStatus = () =>
-  useQuery({
-    queryKey: ["identityStatus"],
-    queryFn: () => client.identityStatus.query(),
-  });
-
-const useIdentityMutation = <TInput,>(
-  mutationFn: (input: TInput) => Promise<unknown>,
-) => {
+const useIdentityMutation = <TInput>(mutationFn: (input: TInput) => Promise<unknown>) => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn,
@@ -38,12 +30,9 @@ export const useIdentityRegister = () =>
   );
 
 export const useIdentityLogin = () =>
-  useIdentityMutation((input: { password: string }) =>
-    client.identityLogin.mutate(input),
-  );
+  useIdentityMutation((input: { password: string }) => client.identityLogin.mutate(input));
 
-export const useIdentityLogout = () =>
-  useIdentityMutation(() => client.identityLogout.mutate());
+export const useIdentityLogout = () => useIdentityMutation(() => client.identityLogout.mutate());
 
 export const useIdentityChangePassword = () =>
   useIdentityMutation((input: { newPassword: string }) =>

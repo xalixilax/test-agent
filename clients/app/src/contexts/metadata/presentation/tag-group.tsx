@@ -76,20 +76,13 @@ export function TagGroup({
         <ComboboxEmpty>No tags found.</ComboboxEmpty>
         <ComboboxList>
           {items.map((item) => (
-            <ComboboxItem
-              key={item.value}
-              value={item}
-              className="font-bold text-sm"
-            >
+            <ComboboxItem key={item.value} value={item} className="font-bold text-sm">
               {item.label}
             </ComboboxItem>
           ))}
           <div className="border-t-4 border-foreground">
             {showAddNew ? (
-              <div
-                className="p-3 bg-muted"
-                onClick={(e) => e.stopPropagation()}
-              >
+              <div className="p-3 bg-muted" onClick={(e) => e.stopPropagation()}>
                 <div className="flex gap-2">
                   <Input
                     type="text"

@@ -1,7 +1,4 @@
-export const waitForTabComplete = (
-  tabId: number,
-  timeoutMs = 20_000,
-): Promise<void> =>
+const waitForTabComplete = (tabId: number, timeoutMs = 20_000): Promise<void> =>
   new Promise((resolve, reject) => {
     const timeoutId = setTimeout(() => {
       chrome.tabs.onUpdated.removeListener(listener);
@@ -19,9 +16,7 @@ export const waitForTabComplete = (
     chrome.tabs.onUpdated.addListener(listener);
   });
 
-export const extractOgImageFromTab = async (
-  tabId: number,
-): Promise<string | null> => {
+export const extractOgImageFromTab = async (tabId: number): Promise<string | null> => {
   try {
     const results = await chrome.scripting.executeScript({
       target: { tabId },
@@ -88,9 +83,7 @@ export const extractOgImageFromTab = async (
   }
 };
 
-export const discoverOgImage = async (
-  url: string,
-): Promise<string | null> => {
+export const discoverOgImage = async (url: string): Promise<string | null> => {
   const tab = await chrome.tabs.create({ url, active: false });
   if (!tab.id) return null;
   try {

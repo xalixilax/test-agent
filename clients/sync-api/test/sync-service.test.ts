@@ -51,9 +51,7 @@ describe("SyncService", () => {
   it("breaks ties by device id", async () => {
     const { sync } = build();
     await sync.push([envelope({ updatedAt: 100, deviceId: "b" })]);
-    const result = await sync.push([
-      envelope({ updatedAt: 100, deviceId: "a" }),
-    ]);
+    const result = await sync.push([envelope({ updatedAt: 100, deviceId: "a" })]);
     expect(result.accepted).toBe(0);
   });
 
@@ -62,9 +60,7 @@ describe("SyncService", () => {
     await blobs.put("images/u1/abc", new ArrayBuffer(4), "image/png");
     await blobs.put("images/u2/def", new ArrayBuffer(4), "image/png");
 
-    await sync.push([
-      envelope({ field: "__deleted", deleted: true, updatedAt: 300 }),
-    ]);
+    await sync.push([envelope({ field: "__deleted", deleted: true, updatedAt: 300 })]);
 
     expect(blobs.objects.has("images/u1/abc")).toBe(false);
     expect(blobs.objects.has("images/u2/def")).toBe(true);

@@ -3,10 +3,9 @@ import { Button } from "@design-system/ui/button";
 
 interface AddBookmarkProps {
   onAdd: (title: string, url: string, isFolder: boolean) => void;
-  currentFolderId: string | null;
 }
 
-function AddBookmark({ onAdd, currentFolderId }: AddBookmarkProps) {
+function AddBookmark({ onAdd }: AddBookmarkProps) {
   const [title, setTitle] = useState("");
   const [url, setUrl] = useState("");
   const [isExpanded, setIsExpanded] = useState(false);
@@ -99,12 +98,7 @@ function AddBookmark({ onAdd, currentFolderId }: AddBookmarkProps) {
       )}
 
       <div className="flex gap-2">
-        <Button
-          type="submit"
-          className="flex-1 font-black"
-          variant="default"
-          size="default"
-        >
+        <Button type="submit" className="flex-1 font-black" variant="default" size="default">
           {isFolder ? "📁 CREATE FOLDER" : "ADD BOOKMARK"}
         </Button>
         <Button

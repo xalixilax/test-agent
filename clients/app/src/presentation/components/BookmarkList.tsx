@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button } from "@design-system/ui/button";
 import { Folder } from "./folder";
 import { BookmarkCard } from "@/contexts/metadata/presentation/bookmark-card";
+import { openBookmark } from "../lib/openBookmark";
 import type { BookmarkItem } from "../types";
 
 interface BookmarkListProps {
@@ -9,26 +10,13 @@ interface BookmarkListProps {
   allTags: string[];
   onDelete: (chromeBookmarkId: string) => void;
   onNavigateToFolder: (chromeBookmarkId: string, folderTitle: string) => void;
-  isSearching: boolean;
 }
 
-function BookmarkList({
-  items,
-  allTags,
-  onDelete,
-  onNavigateToFolder,
-  isSearching,
-}: BookmarkListProps) {
-  const [selectedScreenshot, setSelectedScreenshot] = useState<string | null>(
-    null,
-  );
+function BookmarkList({ items, allTags, onDelete, onNavigateToFolder }: BookmarkListProps) {
+  const [selectedScreenshot, setSelectedScreenshot] = useState<string | null>(null);
 
   const handleOpenBookmark = (url: string) => {
-    if (typeof chrome !== "undefined" && chrome.tabs) {
-      void chrome.tabs.create({ url });
-    } else {
-      window.open(url, "_blank");
-    }
+    openBookmark(url);
   };
 
   const formatDate = (timestamp?: Date | null) => {

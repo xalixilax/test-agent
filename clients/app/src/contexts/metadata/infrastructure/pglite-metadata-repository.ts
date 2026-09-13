@@ -3,10 +3,7 @@ import { type FieldName } from "sync-protocol";
 import { assembleRecord, type LocalField, type MetadataRecord } from "../domain/metadata";
 import { normalizeUrl } from "../domain/url";
 import { stableUuid } from "../domain/uuid";
-import type {
-  MetadataRepository,
-  SetFieldByUrlInput,
-} from "../domain/metadata-repository";
+import type { MetadataRepository, SetFieldByUrlInput } from "../domain/metadata-repository";
 import type {
   DecryptedChange,
   DirtyField,
@@ -38,9 +35,7 @@ const toLocalField = (row: FieldRow): LocalField => ({
 
 const FIELD_COLUMNS = "uuid, field, value, updated_at, device_id, deleted, dirty";
 
-export class PgliteMetadataRepository
-  implements MetadataRepository, MetadataSyncStore
-{
+export class PgliteMetadataRepository implements MetadataRepository, MetadataSyncStore {
   constructor(private readonly db: PGlite) {}
 
   async getDeviceId(): Promise<string> {
@@ -130,16 +125,9 @@ export class PgliteMetadataRepository
     );
   }
 
-  async purgeByUrl(
-    url: string,
-    updatedAt: number,
-    deviceId: string,
-  ): Promise<void> {
+  async purgeByUrl(url: string, updatedAt: number, deviceId: string): Promise<void> {
     const uuid = await stableUuid(normalizeUrl(url));
-    await this.db.query(
-      "UPDATE metadata_records SET deleted = 1 WHERE uuid = $1",
-      [uuid],
-    );
+    await this.db.query("UPDATE metadata_records SET deleted = 1 WHERE uuid = $1", [uuid]);
     await this.upsertField(uuid, "__deleted", "1", updatedAt, deviceId, true, true);
   }
 
@@ -161,15 +149,7 @@ export class PgliteMetadataRepository
          device_id = EXCLUDED.device_id,
          deleted = EXCLUDED.deleted,
          dirty = EXCLUDED.dirty`,
-      [
-        uuid,
-        field,
-        value,
-        updatedAt,
-        deviceId,
-        deleted ? 1 : 0,
-        dirty ? 1 : 0,
-      ],
+      [uuid, field, value, updatedAt, deviceId, deleted ? 1 : 0, dirty ? 1 : 0],
     );
   }
 

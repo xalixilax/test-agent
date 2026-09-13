@@ -12,7 +12,7 @@ const invalidateMetadata = (queryClient: ReturnType<typeof useQueryClient>) => {
   void queryClient.invalidateQueries({ queryKey: ["syncStatus"] });
 };
 
-export const useMetadataRecords = () =>
+const useMetadataRecords = () =>
   useQuery({
     queryKey: ["metadataRecords"],
     queryFn: () => client.getMetadataRecords.query(),
@@ -38,9 +38,7 @@ const useInvalidatingMutation = <TInput, TOutput>(
 };
 
 export const useSetNote = () =>
-  useInvalidatingMutation((input: { url: string; note: string }) =>
-    client.setNote.mutate(input),
-  );
+  useInvalidatingMutation((input: { url: string; note: string }) => client.setNote.mutate(input));
 
 export const useSetRating = () =>
   useInvalidatingMutation((input: { url: string; rating: number | null }) =>
@@ -48,19 +46,13 @@ export const useSetRating = () =>
   );
 
 export const useSetTags = () =>
-  useInvalidatingMutation((input: { url: string; tags: string[] }) =>
-    client.setTags.mutate(input),
-  );
+  useInvalidatingMutation((input: { url: string; tags: string[] }) => client.setTags.mutate(input));
 
 export const useClearScreenshot = () =>
-  useInvalidatingMutation((input: { url: string }) =>
-    client.clearScreenshot.mutate(input),
-  );
+  useInvalidatingMutation((input: { url: string }) => client.clearScreenshot.mutate(input));
 
 export const useCaptureImage = () =>
-  useInvalidatingMutation((input: { url: string }) =>
-    client.captureImage.mutate(input),
-  );
+  useInvalidatingMutation((input: { url: string }) => client.captureImage.mutate(input));
 
 export const useBackfillImages = () =>
   useInvalidatingMutation(() => client.backfillImages.mutate());

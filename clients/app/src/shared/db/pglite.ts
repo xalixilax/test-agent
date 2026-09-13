@@ -12,18 +12,16 @@ export const initDb = async (): Promise<PGlite> => {
     );
   `);
 
-  const applied = await client.query<{ id: string }>(
-    'SELECT id FROM "_migrations"',
-  );
+  const applied = await client.query<{ id: string }>('SELECT id FROM "_migrations"');
   const appliedIds = new Set(applied.rows.map((row) => row.id));
 
   for (const migration of MIGRATIONS) {
     if (appliedIds.has(migration.id)) continue;
     await client.exec(migration.sql);
-    await client.query(
-      'INSERT INTO "_migrations" (id, applied_at) VALUES ($1, $2)',
-      [migration.id, Date.now()],
-    );
+    await client.query('INSERT INTO "_migrations" (id, applied_at) VALUES ($1, $2)', [
+      migration.id,
+      Date.now(),
+    ]);
   }
 
   return client;

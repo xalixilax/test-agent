@@ -23,8 +23,6 @@ export interface AuthGateway {
   params(): Promise<AuthParamsResponse>;
   register(input: RegisterRequest): Promise<LoginResponse>;
   login(input: LoginRequest): Promise<LoginResponse>;
-  changePassword(
-    input: ChangePasswordRequest & { token: string },
-  ): Promise<void>;
+  changePassword(input: ChangePasswordRequest & { token: string }): Promise<void>;
   logout(token: string): Promise<void>;
 }

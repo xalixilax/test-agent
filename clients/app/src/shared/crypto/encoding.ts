@@ -20,13 +20,8 @@ export const fromBase64 = (value: string): Uint8Array<ArrayBuffer> => {
 export const randomBytes = (length: number): Uint8Array<ArrayBuffer> =>
   crypto.getRandomValues(new Uint8Array(length));
 
-export const sha256Hex = async (
-  value: string | Uint8Array<ArrayBuffer>,
-): Promise<string> => {
-  const data: BufferSource =
-    typeof value === "string" ? encoder.encode(value) : value;
+export const sha256Hex = async (value: string | Uint8Array<ArrayBuffer>): Promise<string> => {
+  const data: BufferSource = typeof value === "string" ? encoder.encode(value) : value;
   const digest = await crypto.subtle.digest("SHA-256", data);
-  return [...new Uint8Array(digest)]
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 };

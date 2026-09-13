@@ -3,13 +3,9 @@ import { hmacLikeEqual, toHex } from "./auth-service";
 const encoder = new TextEncoder();
 
 const importSigningKey = (secret: string): Promise<CryptoKey> =>
-  crypto.subtle.importKey(
-    "raw",
-    encoder.encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
+  crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, [
+    "sign",
+  ]);
 
 export const signImagePath = async (
   secret: string,
@@ -19,11 +15,7 @@ export const signImagePath = async (
 ): Promise<string> => {
   const cryptoKey = await importSigningKey(secret);
   const signature = new Uint8Array(
-    await crypto.subtle.sign(
-      "HMAC",
-      cryptoKey,
-      encoder.encode(`${uuid}/${key}/${exp}`),
-    ),
+    await crypto.subtle.sign("HMAC", cryptoKey, encoder.encode(`${uuid}/${key}/${exp}`)),
   );
   return toHex(signature);
 };

@@ -21,11 +21,7 @@ import {
   type CaptureResult,
   type SyncStatus,
 } from "./routers/appRouters";
-import {
-  createWorkerHandler,
-  type WorkerRequest,
-  type WorkerResponse,
-} from "./shared/rpc/router";
+import { createWorkerHandler, type WorkerRequest, type WorkerResponse } from "./shared/rpc/router";
 import { SYNC_API_URL } from "./shared/config";
 
 const LAST_SYNC_KEY = "sync.lastAt";
@@ -45,9 +41,7 @@ interface Services {
 }
 
 let services: Services | null = null;
-let handleRequest:
-  | ((request: WorkerRequest) => Promise<WorkerResponse>)
-  | null = null;
+let handleRequest: ((request: WorkerRequest) => Promise<WorkerResponse>) | null = null;
 let syncing = false;
 let backfilling = false;
 let syncTimer: ReturnType<typeof setTimeout> | null = null;
@@ -59,9 +53,7 @@ const notify = (message: unknown): void => {
   chrome.runtime.sendMessage(message).catch(() => undefined);
 };
 
-const resolveBookmarkUrl = async (
-  chromeBookmarkId: string,
-): Promise<string | null> => {
+const resolveBookmarkUrl = async (chromeBookmarkId: string): Promise<string | null> => {
   try {
     const [node] = await chrome.bookmarks.get(chromeBookmarkId);
     return node?.url ?? null;
@@ -95,8 +87,7 @@ const flattenBookmarks = (
   return result;
 };
 
-const isHttpUrl = (url: string): boolean =>
-  url.startsWith("http://") || url.startsWith("https://");
+const isHttpUrl = (url: string): boolean => url.startsWith("http://") || url.startsWith("https://");
 
 const initServices = async (): Promise<Services> => {
   const db = await initDb();
@@ -112,9 +103,7 @@ const initServices = async (): Promise<Services> => {
     scheduleSync();
   });
   const identity = new IdentityService(api, sessionStore);
-  const cipher = new DataKeyCipher(
-    async () => (await sessionStore.get())?.dataKey ?? null,
-  );
+  const cipher = new DataKeyCipher(async () => (await sessionStore.get())?.dataKey ?? null);
   const engine = new SyncEngine({
     store: repository,
     gateway: api,
@@ -166,13 +155,12 @@ const buildStatus = async (): Promise<SyncStatus> => {
     };
   }
 
-  const [identityStatus, pendingCount, lastSyncAt, lastError] =
-    await Promise.all([
-      current.identity.status(),
-      current.repository.countDirtyFields(),
-      current.repository.getSyncState(LAST_SYNC_KEY),
-      current.repository.getSyncState(LAST_ERROR_KEY),
-    ]);
+  const [identityStatus, pendingCount, lastSyncAt, lastError] = await Promise.all([
+    current.identity.status(),
+    current.repository.countDirtyFields(),
+    current.repository.getSyncState(LAST_SYNC_KEY),
+    current.repository.getSyncState(LAST_ERROR_KEY),
+  ]);
 
   return {
     loggedIn: identityStatus.loggedIn,
@@ -197,9 +185,7 @@ const runSync = async (): Promise<SyncStatus> => {
       await current.repository.setSyncState(LAST_SYNC_KEY, String(now()));
       await current.repository.setSyncState(
         LAST_ERROR_KEY,
-        result.errors > 0
-          ? `${result.errors} remote change(s) could not be decrypted`
-          : "",
+        result.errors > 0 ? `${result.errors} remote change(s) could not be decrypted` : "",
       );
       notify({ action: "dataChanged" });
     }
@@ -250,9 +236,7 @@ const listRecordViews = async (): Promise<MetadataRecordView[]> => {
 
   return records.map((record) => ({
     ...record,
-    imageUrl: record.imageKey
-      ? signedUrls.get(`${record.uuid}/${record.imageKey}`)
-      : undefined,
+    imageUrl: record.imageKey ? signedUrls.get(`${record.uuid}/${record.imageKey}`) : undefined,
   }));
 };
 
@@ -277,9 +261,7 @@ const backfillImages = async (): Promise<{ started: boolean }> => {
         (bookmark) => bookmark.url && isHttpUrl(bookmark.url),
       );
       const records = await current.repository.listRecords();
-      const byUrl = new Map(
-        records.map((record) => [normalizeUrl(record.url), record]),
-      );
+      const byUrl = new Map(records.map((record) => [normalizeUrl(record.url), record]));
       const missing = bookmarks.filter(
         (bookmark) => !byUrl.get(normalizeUrl(bookmark.url!))?.imageKey,
       );
@@ -294,8 +276,7 @@ const backfillImages = async (): Promise<{ started: boolean }> => {
           batch.map(async (bookmark) => {
             const url = bookmark.url!;
             try {
-              let imageUrl =
-                byUrl.get(normalizeUrl(url))?.screenshotUrl ?? null;
+              let imageUrl = byUrl.get(normalizeUrl(url))?.screenshotUrl ?? null;
               if (!imageUrl) {
                 imageUrl = await discoverOgImage(url);
                 if (imageUrl) {
@@ -366,10 +347,7 @@ const ready = initServices()
     return current;
   })
   .catch((error: unknown) => {
-    console.error(
-      "[background] init failed",
-      error instanceof Error ? error.message : error,
-    );
+    console.error("[background] init failed", error instanceof Error ? error.message : error);
     throw error;
   });
 
@@ -399,32 +377,44 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
   return true;
 });
 
-chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+const captureForVisitedBookmark = async (tabId: number, url: string): Promise<void> => {
+  const current = services;
+  if (!current) return;
+
+  const bookmarks = await chrome.bookmarks.search({ url });
+  if (bookmarks.length === 0) return;
+
+  const record = await current.repository.findByUrl(url);
+  if (record?.screenshotUrl || record?.imageKey) return;
+
+  const visited = await getVisitedUrls();
+  if (visited.has(url)) return;
+  await addVisitedUrl(url);
+
+  const screenshotUrl = await extractOgImageFromTab(tabId);
+  if (!screenshotUrl) return;
+
+  await current.metadata.setScreenshotUrl(url, screenshotUrl);
+  await current.archiver.archive(url, screenshotUrl);
+};
+
+const autoCaptureOnVisit = async (
+  tabId: number,
+  changeInfo: { status?: string },
+  tab: chrome.tabs.Tab,
+): Promise<void> => {
   if (changeInfo.status !== "complete" || !tab.url) return;
   if (!isHttpUrl(tab.url)) return;
 
   try {
-    const current = services;
-    if (!current) return;
-
-    const bookmarks = await chrome.bookmarks.search({ url: tab.url });
-    if (bookmarks.length === 0) return;
-
-    const record = await current.repository.findByUrl(tab.url);
-    if (record?.screenshotUrl || record?.imageKey) return;
-
-    const visited = await getVisitedUrls();
-    if (visited.has(tab.url)) return;
-    await addVisitedUrl(tab.url);
-
-    const screenshotUrl = await extractOgImageFromTab(tabId);
-    if (!screenshotUrl) return;
-
-    await current.metadata.setScreenshotUrl(tab.url, screenshotUrl);
-    await current.archiver.archive(tab.url, screenshotUrl);
+    await captureForVisitedBookmark(tabId, tab.url);
   } catch (error) {
     console.error("[background] auto capture failed", error);
   }
+};
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  void autoCaptureOnVisit(tabId, changeInfo, tab);
 });
 
 chrome.bookmarks.onRemoved.addListener(async (_id, removeInfo) => {

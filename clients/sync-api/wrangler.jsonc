@@ -6,19 +6,19 @@
   "compatibility_flags": ["nodejs_compat"],
   "observability": {
     "enabled": true,
-    "head_sampling_rate": 1
+    "head_sampling_rate": 1,
   },
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "bookmark-sync",
-      "database_id": "REPLACE_WITH_D1_DATABASE_ID"
-    }
+      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+    },
   ],
   "r2_buckets": [
     {
       "binding": "IMAGES",
-      "bucket_name": "bookmark-sync-images"
-    }
-  ]
+      "bucket_name": "bookmark-sync-images",
+    },
+  ],
 }

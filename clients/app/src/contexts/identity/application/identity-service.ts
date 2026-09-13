@@ -92,10 +92,6 @@ export class IdentityService {
     }
   }
 
-  async session(): Promise<StoredSession | null> {
-    return this.store.get();
-  }
-
   private async requireSession(): Promise<StoredSession> {
     const session = await this.store.get();
     if (!session) throw new Error("Not logged in");

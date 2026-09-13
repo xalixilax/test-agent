@@ -41,9 +41,7 @@ export class D1AccountStore implements AccountStore {
 
   async update(account: Account): Promise<void> {
     await this.db
-      .prepare(
-        "UPDATE accounts SET salt = ?, auth_hash = ?, wrapped_key = ? WHERE id = 1",
-      )
+      .prepare("UPDATE accounts SET salt = ?, auth_hash = ?, wrapped_key = ? WHERE id = 1")
       .bind(account.salt, account.authHash, account.wrappedKey)
       .run();
   }
@@ -52,44 +50,27 @@ export class D1AccountStore implements AccountStore {
 export class D1SessionStore implements SessionStore {
   constructor(private readonly db: D1Database) {}
 
-  async create(
-    tokenHash: string,
-    expiresAt: number,
-    createdAt: number,
-  ): Promise<void> {
+  async create(tokenHash: string, expiresAt: number, createdAt: number): Promise<void> {
     await this.db
-      .prepare(
-        "INSERT INTO sessions (token_hash, created_at, expires_at) VALUES (?, ?, ?)",
-      )
+      .prepare("INSERT INTO sessions (token_hash, created_at, expires_at) VALUES (?, ?, ?)")
       .bind(tokenHash, createdAt, expiresAt)
       .run();
   }
 
-  async find(
-    tokenHash: string,
-    now: number,
-  ): Promise<{ expiresAt: number } | null> {
+  async find(tokenHash: string, now: number): Promise<{ expiresAt: number } | null> {
     const row = await this.db
-      .prepare(
-        "SELECT expires_at FROM sessions WHERE token_hash = ? AND expires_at > ?",
-      )
+      .prepare("SELECT expires_at FROM sessions WHERE token_hash = ? AND expires_at > ?")
       .bind(tokenHash, now)
       .first<{ expires_at: number }>();
     return row ? { expiresAt: row.expires_at } : null;
   }
 
   async delete(tokenHash: string): Promise<void> {
-    await this.db
-      .prepare("DELETE FROM sessions WHERE token_hash = ?")
-      .bind(tokenHash)
-      .run();
+    await this.db.prepare("DELETE FROM sessions WHERE token_hash = ?").bind(tokenHash).run();
   }
 
   async deleteExpired(now: number): Promise<void> {
-    await this.db
-      .prepare("DELETE FROM sessions WHERE expires_at <= ?")
-      .bind(now)
-      .run();
+    await this.db.prepare("DELETE FROM sessions WHERE expires_at <= ?").bind(now).run();
   }
 }
 

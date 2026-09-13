@@ -2,21 +2,24 @@
   "name": "test-agent",
   "version": "1.0.0",
   "description": "",
+  "keywords": [],
+  "license": "ISC",
+  "author": "",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "app": "pnpm --filter bookmark-manager",
-    "ds": "pnpm --filter design-system"
+    "ds": "pnpm --filter design-system",
+    "lint": "oxlint .",
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check .",
+    "analyze": "fallow"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "packageManager": "pnpm@10.24.0",
   "devDependencies": {
-    "@storybook/react-vite": "^10.6.0",
     "@types/chrome": "^0.2.9",
     "fallow": "^3.25.0",
     "oxfmt": "^0.67.0",
     "oxlint": "^1.82.0"
-  }
+  },
+  "packageManager": "pnpm@10.24.0"
 }

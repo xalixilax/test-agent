@@ -26,8 +26,8 @@ export interface MetadataRecordView extends MetadataRecord {
   imageUrl?: string;
 }
 
-export const RATING_MIN = 0;
-export const RATING_MAX = 5;
+const RATING_MIN = 0;
+const RATING_MAX = 5;
 
 export const parseRating = (value: string | null): number | undefined => {
   if (value === null || value.trim() === "") return undefined;
@@ -61,22 +61,17 @@ export const parseTags = (value: string | null): string[] => {
 };
 
 export const serializeTags = (tags: string[]): string =>
-  JSON.stringify(
-    [...new Set(tags.map((tag) => tag.trim()).filter(Boolean))].sort(),
-  );
+  JSON.stringify([...new Set(tags.map((tag) => tag.trim()).filter(Boolean))].sort());
 
 const isRecordDeleted = (fields: LocalField[]): boolean => {
-  const tombstone = fields.find(
-    (field) => field.field === "__deleted" && field.deleted,
-  );
+  const tombstone = fields.find((field) => field.field === "__deleted" && field.deleted);
   if (!tombstone) return false;
   return fields.every(
-    (field) =>
-      field.field === "__deleted" || field.updatedAt <= tombstone.updatedAt,
+    (field) => field.field === "__deleted" || field.updatedAt <= tombstone.updatedAt,
   );
 };
 
-export const recordUrl = (fields: LocalField[]): string | null =>
+const recordUrl = (fields: LocalField[]): string | null =>
   fields.find((field) => field.field === "url")?.value ?? null;
 
 export const assembleRecord = (fields: LocalField[]): MetadataRecord | null => {
@@ -88,10 +83,7 @@ export const assembleRecord = (fields: LocalField[]): MetadataRecord | null => {
     url,
     tags: [],
     deleted: isRecordDeleted(fields),
-    updatedAt: fields.reduce(
-      (max, field) => Math.max(max, field.updatedAt),
-      0,
-    ),
+    updatedAt: fields.reduce((max, field) => Math.max(max, field.updatedAt), 0),
   };
 
   for (const field of fields) {

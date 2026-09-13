@@ -10,9 +10,7 @@ export function Rating({
 }) {
   const [hoverRating, setHoverRating] = useState(0);
 
-  const getStarState = (
-    star: number,
-  ): "filled" | "lighter" | "grey" | "unfilled" => {
+  const getStarState = (star: number): "filled" | "lighter" | "grey" | "unfilled" => {
     if (hoverRating > 0) {
       if (star <= hoverRating) {
         if (star <= rating) return "filled";
@@ -44,7 +42,7 @@ export function Rating({
   );
 }
 
-export function CustomStarIcon({
+function CustomStarIcon({
   state = "unfilled",
 }: {
   state?: "filled" | "lighter" | "grey" | "unfilled";

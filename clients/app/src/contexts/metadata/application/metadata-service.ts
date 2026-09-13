@@ -31,11 +31,7 @@ export class MetadataService {
   }
 
   async setRating(url: string, rating: number | null): Promise<void> {
-    await this.write(
-      url,
-      "rating",
-      rating === null ? null : serializeRating(rating),
-    );
+    await this.write(url, "rating", rating === null ? null : serializeRating(rating));
   }
 
   async setTags(url: string, tags: string[]): Promise<void> {

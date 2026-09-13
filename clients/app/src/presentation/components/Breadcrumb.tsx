@@ -18,9 +18,7 @@ function Breadcrumb({ path, onNavigate }: BreadcrumbProps) {
           >
             {item.title || "Bookmarks"}
           </Button>
-          {index < path.length - 1 && (
-            <span className="text-xl font-black">›</span>
-          )}
+          {index < path.length - 1 && <span className="text-xl font-black">›</span>}
         </div>
       ))}
     </nav>

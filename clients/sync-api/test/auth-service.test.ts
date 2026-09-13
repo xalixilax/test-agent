@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { AuthError, AuthService } from "../src/application/auth-service";
-import {
-  InMemoryAccountStore,
-  InMemorySessionStore,
-} from "./support/in-memory";
+import { InMemoryAccountStore, InMemorySessionStore } from "./support/in-memory";
 
 const build = (now = () => 1_000) => {
   const accounts = new InMemoryAccountStore();
@@ -57,16 +54,12 @@ describe("AuthService", () => {
     const { auth } = build();
     await register(auth);
 
-    await expect(auth.login({ authHash: "nope" })).rejects.toThrow(
-      "Invalid password",
-    );
+    await expect(auth.login({ authHash: "nope" })).rejects.toThrow("Invalid password");
 
     const session = await auth.login({ authHash: "hash" });
     expect(session.wrappedKey).toBe("wrapped");
     await expect(auth.authenticate(session.token)).resolves.toBeUndefined();
-    await expect(auth.authenticate("bogus")).rejects.toThrow(
-      "Invalid or expired session",
-    );
+    await expect(auth.authenticate("bogus")).rejects.toThrow("Invalid or expired session");
   });
 
   it("expires sessions after the TTL", async () => {
@@ -75,9 +68,7 @@ describe("AuthService", () => {
     await register(auth);
     const session = await auth.login({ authHash: "hash" });
     now += 31 * 24 * 60 * 60 * 1000;
-    await expect(auth.authenticate(session.token)).rejects.toThrow(
-      "Invalid or expired session",
-    );
+    await expect(auth.authenticate(session.token)).rejects.toThrow("Invalid or expired session");
   });
 
   it("invalidates the session on logout", async () => {
@@ -102,8 +93,8 @@ describe("AuthService", () => {
       wrappedKey: "wrapped2",
     });
     await expect(auth.login({ authHash: "hash" })).rejects.toThrow();
-    await expect(
-      auth.login({ authHash: "hash2" }),
-    ).resolves.toMatchObject({ wrappedKey: "wrapped2" });
+    await expect(auth.login({ authHash: "hash2" })).resolves.toMatchObject({
+      wrappedKey: "wrapped2",
+    });
   });
 });

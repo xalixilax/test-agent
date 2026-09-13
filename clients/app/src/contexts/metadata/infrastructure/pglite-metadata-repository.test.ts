@@ -171,8 +171,8 @@ describe("PgliteMetadataRepository", () => {
       updatedAt: 100,
       deviceId: "device-a",
     });
-    await expect(repository.findByUrl("https://example.com/page")).resolves.toMatchObject(
-      { note: "hello" },
-    );
+    await expect(repository.findByUrl("https://example.com/page")).resolves.toMatchObject({
+      note: "hello",
+    });
   });
 });

@@ -17,15 +17,11 @@ const toHex = (bytes: Uint8Array): string =>
 export { toHex };
 
 export const sha256Hex = async (value: string): Promise<string> => {
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(value),
-  );
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
   return toHex(new Uint8Array(digest));
 };
 
-export const randomToken = (): string =>
-  toHex(crypto.getRandomValues(new Uint8Array(32)));
+const randomToken = (): string => toHex(crypto.getRandomValues(new Uint8Array(32)));
 
 export interface AuthServiceDeps {
   accounts: AccountStore;
@@ -34,7 +30,7 @@ export interface AuthServiceDeps {
   now?: () => number;
 }
 
-export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 export class AuthService {
   private readonly now: () => number;
@@ -105,10 +101,7 @@ export class AuthService {
   }
 
   async authenticate(token: string): Promise<void> {
-    const session = await this.deps.sessions.find(
-      await sha256Hex(token),
-      this.now(),
-    );
+    const session = await this.deps.sessions.find(await sha256Hex(token), this.now());
     if (!session) throw new AuthError(401, "Invalid or expired session");
   }
 
@@ -117,11 +110,7 @@ export class AuthService {
   ): Promise<{ token: string; wrappedKey: string; serverTime: number }> {
     const token = randomToken();
     const now = this.now();
-    await this.deps.sessions.create(
-      await sha256Hex(token),
-      now + SESSION_TTL_MS,
-      now,
-    );
+    await this.deps.sessions.create(await sha256Hex(token), now + SESSION_TTL_MS, now);
     return { token, wrappedKey, serverTime: now };
   }
 }

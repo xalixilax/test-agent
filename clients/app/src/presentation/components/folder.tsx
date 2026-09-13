@@ -17,9 +17,7 @@ export function Folder({ item, onNavigateToFolder, onDelete }: FolderProps) {
     >
       <div className="flex flex-col h-full items-center justify-center py-8">
         <FolderIcon className="w-12 h-12 text-foreground mb-3" />
-        <h3 className="font-black text-base sm:text-lg text-center">
-          {item.title.toUpperCase()}
-        </h3>
+        <h3 className="font-black text-base sm:text-lg text-center">{item.title.toUpperCase()}</h3>
       </div>
 
       <div className="absolute top-2 right-2">

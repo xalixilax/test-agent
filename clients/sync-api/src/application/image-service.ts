@@ -19,14 +19,10 @@ export class ImageService {
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     if (!response.ok) {
-      throw new ApiError(
-        400,
-        `Image fetch failed with status ${response.status}`,
-      );
+      throw new ApiError(400, `Image fetch failed with status ${response.status}`);
     }
 
-    const contentType =
-      response.headers.get("content-type")?.split(";")[0]?.trim() ?? "";
+    const contentType = response.headers.get("content-type")?.split(";")[0]?.trim() ?? "";
     if (!contentType.startsWith("image/")) {
       throw new ApiError(400, "URL did not return an image");
     }
@@ -54,10 +50,7 @@ export class ImageService {
   }
 }
 
-const readWithCap = async (
-  response: Response,
-  cap: number,
-): Promise<ArrayBuffer> => {
+const readWithCap = async (response: Response, cap: number): Promise<ArrayBuffer> => {
   if (!response.body) {
     const bytes = await response.arrayBuffer();
     if (bytes.byteLength > cap) throw new ApiError(413, "Image is larger than 5MB");

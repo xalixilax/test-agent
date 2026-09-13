@@ -17,14 +17,10 @@ export interface VersionStamp {
   deviceId: string;
 }
 
-export const isNewer = (
-  incoming: VersionStamp,
-  existing: VersionStamp | null,
-): boolean =>
+export const isNewer = (incoming: VersionStamp, existing: VersionStamp | null): boolean =>
   existing === null ||
   incoming.updatedAt > existing.updatedAt ||
-  (incoming.updatedAt === existing.updatedAt &&
-    incoming.deviceId > existing.deviceId);
+  (incoming.updatedAt === existing.updatedAt && incoming.deviceId > existing.deviceId);
 
 export const fieldEnvelopeSchema = z.object({
   uuid: z.string().min(1),
@@ -79,9 +75,7 @@ export const changePasswordRequestSchema = z.object({
   newWrappedKey: z.string().min(1).max(512),
 });
 
-export type ChangePasswordRequest = z.infer<
-  typeof changePasswordRequestSchema
->;
+export type ChangePasswordRequest = z.infer<typeof changePasswordRequestSchema>;
 
 export const syncPushRequestSchema = z.object({
   fields: z.array(fieldEnvelopeSchema).max(2000),

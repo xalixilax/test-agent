@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { IdentityStatus } from "../contexts/identity/application/identity-service";
 import type { MetadataRecord, MetadataRecordView } from "../contexts/metadata/domain/metadata";
 import { createRouter, mutation, query } from "../shared/rpc/router";
 
@@ -10,12 +11,6 @@ export interface SyncStatus {
   lastSyncAt: number | null;
   lastError: string | null;
   pendingCount: number;
-}
-
-export interface IdentityStatus {
-  registered: boolean;
-  loggedIn: boolean;
-  reachable: boolean;
 }
 
 export interface CaptureResult {
@@ -98,8 +93,7 @@ export const createAppRouter = (context: AppRouterContext) =>
 
     captureImage: mutation({
       input: urlInput,
-      handler: (input): Promise<CaptureResult> =>
-        context.captureImage(input.url),
+      handler: (input): Promise<CaptureResult> => context.captureImage(input.url),
     }),
 
     backfillImages: mutation({

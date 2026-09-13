@@ -28,12 +28,8 @@ export interface MetadataSyncStore {
 }
 
 export interface SyncGateway {
-  pull(
-    since: number,
-  ): Promise<{ changes: RemoteField[]; seq: number; serverTime: number }>;
-  push(
-    fields: FieldEnvelope[],
-  ): Promise<{ accepted: number; serverTime: number }>;
+  pull(since: number): Promise<{ changes: RemoteField[]; seq: number; serverTime: number }>;
+  push(fields: FieldEnvelope[]): Promise<{ accepted: number; serverTime: number }>;
 }
 
 export interface FieldCipher {

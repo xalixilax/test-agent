@@ -80,9 +80,7 @@ export const createWorkerHandler = <T extends Router>(router: T) => {
         throw new Error(`Route "${route}" not found`);
       }
 
-      const validatedInput = procedure.input
-        ? procedure.input.parse(input)
-        : input;
+      const validatedInput = procedure.input ? procedure.input.parse(input) : input;
       const data = await procedure.handler(validatedInput);
 
       return { id, success: true as const, data };

@@ -8,9 +8,7 @@ export class SyncService {
     private readonly now: () => number = Date.now,
   ) {}
 
-  async pull(
-    since: number,
-  ): Promise<{ changes: RemoteField[]; seq: number; serverTime: number }> {
+  async pull(since: number): Promise<{ changes: RemoteField[]; seq: number; serverTime: number }> {
     const changes = await this.fields.listSince(since, 5000);
     const seq = changes.length > 0 ? changes[changes.length - 1].seq : since;
     return { changes, seq, serverTime: this.now() };
@@ -40,8 +38,7 @@ export class SyncService {
       accepted += 1;
 
       const purgesImages =
-        (incoming.field === "__deleted" || incoming.field === "image_key") &&
-        incoming.deleted;
+        (incoming.field === "__deleted" || incoming.field === "image_key") && incoming.deleted;
       if (purgesImages) {
         await this.blobs.deletePrefix(`images/${incoming.uuid}/`);
       }

@@ -43,9 +43,7 @@ describe("identity crypto", () => {
     const dataKey = generateDataKey();
     const ciphertext = await encryptField(dataKey, "a private note");
     expect(ciphertext).not.toContain("private");
-    await expect(decryptField(dataKey, ciphertext)).resolves.toBe(
-      "a private note",
-    );
+    await expect(decryptField(dataKey, ciphertext)).resolves.toBe("a private note");
 
     const otherKey = generateDataKey();
     await expect(decryptField(otherKey, ciphertext)).rejects.toThrow();
