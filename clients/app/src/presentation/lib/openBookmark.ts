@@ -1,7 +1,7 @@
 export const openBookmark = (url: string): void => {
-  if (typeof chrome !== "undefined" && chrome.tabs) {
-    void chrome.tabs.create({ url });
-  } else {
-    window.open(url, "_blank");
-  }
+  void chrome.tabs.create({ url });
+};
+
+export const openFullScreen = (): void => {
+  void chrome.tabs.create({ url: chrome.runtime.getURL("index.html") });
 };

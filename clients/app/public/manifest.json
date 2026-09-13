@@ -3,15 +3,7 @@
   "name": "Bookmark Manager",
   "version": "1.0.0",
   "description": "A powerful bookmark management extension built with React and Tailwind CSS",
-  "permissions": [
-    "bookmarks",
-    "storage",
-    "tabs",
-    "activeTab",
-    "alarms",
-    "unlimitedStorage",
-    "scripting"
-  ],
+  "permissions": ["bookmarks", "storage", "tabs", "alarms", "unlimitedStorage", "scripting"],
   "host_permissions": ["<all_urls>"],
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';"

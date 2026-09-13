@@ -1,8 +1,5 @@
 import type { InferInput, InferOutput, Procedure, WorkerRequest, WorkerResponse } from "./router";
 
-type EventListener = (data: unknown) => void;
-type ErrorListener = (error: Error) => void;
-
 class WorkerClient<TRouter extends Record<string, Procedure<any, any>>> {
   private requestId = 0;
   private pendingRequests = new Map<
@@ -12,8 +9,6 @@ class WorkerClient<TRouter extends Record<string, Procedure<any, any>>> {
       reject: (error: Error) => void;
     }
   >();
-  private eventListeners = new Map<string, Set<EventListener>>();
-  private errorListeners = new Set<ErrorListener>();
 
   constructor(_workerUrl?: string) {
     // Transport is chrome.runtime messaging; the url is kept for API compatibility.
@@ -28,18 +23,8 @@ class WorkerClient<TRouter extends Record<string, Procedure<any, any>>> {
     if (response.success) {
       pending.resolve(response.data);
     } else {
-      const error = new Error(response.error);
-      pending.reject(error);
-      this.notifyError(error);
+      pending.reject(new Error(response.error));
     }
-  }
-
-  private notifyError(error: Error) {
-    this.errorListeners.forEach((listener) => listener(error));
-  }
-
-  private notifyListeners(eventKey: string, data: unknown) {
-    this.eventListeners.get(eventKey)?.forEach((listener) => listener(data));
   }
 
   async request<TRoute extends keyof TRouter>(
@@ -75,15 +60,7 @@ class WorkerClient<TRouter extends Record<string, Procedure<any, any>>> {
     route: TRoute,
     input: InferInput<TRouter[TRoute]>,
   ): Promise<InferOutput<TRouter[TRoute]>> {
-    const result = await this.request(route, input);
-    this.notifyListeners(`mutation:${route as string}`, result);
-    return result;
-  }
-
-  terminate() {
-    this.pendingRequests.clear();
-    this.eventListeners.clear();
-    this.errorListeners.clear();
+    return this.request(route, input);
   }
 }
 
@@ -104,18 +81,15 @@ export type EnhancedWorkerClient<TRouter extends Record<string, Procedure<unknow
     [K in keyof TRouter]: RouteHelper<TRouter, K>;
   };
 
-const workerClientInstances = new Map<
-  string,
-  EnhancedWorkerClient<Record<string, Procedure<unknown, unknown>>>
->();
+let instance: EnhancedWorkerClient<Record<string, Procedure<unknown, unknown>>> | null = null;
 
 export const createWorkerClient = <TRouter extends Record<string, Procedure<any, any>>>(
   workerUrl: string = "/worker.js",
 ): EnhancedWorkerClient<TRouter> => {
-  if (!workerClientInstances.has(workerUrl)) {
+  if (!instance) {
     const baseClient = new WorkerClient<TRouter>(workerUrl);
 
-    const enhancedClient = new Proxy(baseClient, {
+    instance = new Proxy(baseClient, {
       get(target, prop) {
         if (prop in target) {
           return target[prop as keyof typeof target];
@@ -126,14 +100,8 @@ export const createWorkerClient = <TRouter extends Record<string, Procedure<any,
           mutate: (input?: unknown) => target.mutate(prop as keyof TRouter, input as any),
         };
       },
-    }) as EnhancedWorkerClient<TRouter>;
-
-    workerClientInstances.set(workerUrl, enhancedClient as any);
+    }) as EnhancedWorkerClient<Record<string, Procedure<unknown, unknown>>>;
   }
 
-  const instance = workerClientInstances.get(workerUrl);
-  if (!instance) {
-    throw new Error("Failed to create worker client instance");
-  }
   return instance as EnhancedWorkerClient<TRouter>;
 };

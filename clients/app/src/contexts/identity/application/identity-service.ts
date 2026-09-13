@@ -46,12 +46,7 @@ export class IdentityService {
       authHash,
       wrappedKey,
     });
-    await this.store.set({
-      token: response.token,
-      dataKey,
-      wrappedKey,
-      salt,
-    });
+    await this.store.set({ token: response.token, dataKey });
   }
 
   async login(password: string): Promise<void> {
@@ -62,12 +57,7 @@ export class IdentityService {
     const { authHash, kek } = await deriveKeys(password, params.salt);
     const response = await this.gateway.login({ authHash });
     const dataKey = await unwrapDataKey(kek, response.wrappedKey);
-    await this.store.set({
-      token: response.token,
-      dataKey,
-      wrappedKey: response.wrappedKey,
-      salt: params.salt,
-    });
+    await this.store.set({ token: response.token, dataKey });
   }
 
   async changePassword(newPassword: string): Promise<void> {
@@ -81,7 +71,6 @@ export class IdentityService {
       newAuthHash: authHash,
       newWrappedKey: wrappedKey,
     });
-    await this.store.set({ ...session, salt, wrappedKey });
   }
 
   async logout(): Promise<void> {

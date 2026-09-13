@@ -19,7 +19,7 @@ export interface SessionStore {
   deleteExpired(now: number): Promise<void>;
 }
 
-export interface StoredField extends FieldEnvelope {}
+export type StoredField = FieldEnvelope;
 
 export interface FieldStore {
   get(uuid: string, field: string): Promise<StoredField | null>;

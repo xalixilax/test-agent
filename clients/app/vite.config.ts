@@ -5,7 +5,6 @@ import { resolve } from "path";
 import { defineConfig } from "vite";
 
 export default defineConfig({
-  logLevel: "info",
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
@@ -13,14 +12,8 @@ export default defineConfig({
       "@design-system": path.resolve(__dirname, "../../packages/design-system"),
     },
   },
-  cacheDir: "node_modules/.vite",
   optimizeDeps: {
     exclude: ["@electric-sql/pglite"],
-    esbuildOptions: {
-      define: {
-        global: "globalThis",
-      },
-    },
   },
   define: {
     "process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV || "production"),

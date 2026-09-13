@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import SearchBar from "./components/SearchBar";
-import { openFullScreen } from "./hooks/useExtension";
 import { Button } from "@design-system/ui/button";
 import { formatDisplayUrl } from "@/shared/format";
 import { normalizeUrl } from "@/contexts/metadata/domain/url";
 import { useMetadataEvents, useRecordsByUrl } from "./hooks/useMetadata";
-import { openBookmark } from "./lib/openBookmark";
+import { openBookmark, openFullScreen } from "./lib/openBookmark";
 
 const queryClient = new QueryClient();
 

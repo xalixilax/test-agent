@@ -2,16 +2,11 @@ import type { z } from "zod";
 import {
   authParamsResponseSchema,
   errorResponseSchema,
-  imageFetchRequestSchema,
   imageFetchResponseSchema,
-  loginRequestSchema,
   loginResponseSchema,
   okResponseSchema,
-  registerRequestSchema,
-  signImagesRequestSchema,
   signImagesResponseSchema,
   syncPullResponseSchema,
-  syncPushRequestSchema,
   syncPushResponseSchema,
   type AuthParamsResponse,
   type ChangePasswordRequest,
@@ -31,7 +26,6 @@ import type { ImageGateway, SyncGateway } from "../application/ports";
 export interface HttpSyncApiClientOptions {
   baseUrl: string;
   getToken: () => Promise<string | null>;
-  fetchFn?: typeof fetch;
 }
 
 const errorMessage = (body: unknown, status: number): string => {
@@ -42,12 +36,10 @@ const errorMessage = (body: unknown, status: number): string => {
 export class HttpSyncApiClient implements AuthGateway, SyncGateway, ImageGateway {
   private readonly baseUrl: string;
   private readonly getToken: () => Promise<string | null>;
-  private readonly fetchFn: typeof fetch;
 
   constructor(options: HttpSyncApiClientOptions) {
     this.baseUrl = options.baseUrl.replace(/\/+$/u, "");
     this.getToken = options.getToken;
-    this.fetchFn = options.fetchFn ?? fetch.bind(globalThis);
   }
 
   private async request<T>(
@@ -71,7 +63,7 @@ export class HttpSyncApiClient implements AuthGateway, SyncGateway, ImageGateway
       headers.set("authorization", `Bearer ${token}`);
     }
 
-    const response = await this.fetchFn(url.toString(), {
+    const response = await fetch(url.toString(), {
       method: options.method ?? "GET",
       headers,
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
@@ -94,7 +86,7 @@ export class HttpSyncApiClient implements AuthGateway, SyncGateway, ImageGateway
     return this.request("/auth/register", loginResponseSchema, {
       method: "POST",
       token: null,
-      body: registerRequestSchema.parse(input),
+      body: input,
     });
   }
 
@@ -102,7 +94,7 @@ export class HttpSyncApiClient implements AuthGateway, SyncGateway, ImageGateway
     return this.request("/auth/login", loginResponseSchema, {
       method: "POST",
       token: null,
-      body: loginRequestSchema.parse(input),
+      body: input,
     });
   }
 
@@ -134,7 +126,7 @@ export class HttpSyncApiClient implements AuthGateway, SyncGateway, ImageGateway
   async push(fields: FieldEnvelope[]): Promise<{ accepted: number; serverTime: number }> {
     const response: SyncPushResponse = await this.request("/sync", syncPushResponseSchema, {
       method: "POST",
-      body: syncPushRequestSchema.parse({ fields }),
+      body: { fields },
     });
     return response;
   }
@@ -142,7 +134,7 @@ export class HttpSyncApiClient implements AuthGateway, SyncGateway, ImageGateway
   async fetchAndStore(input: ImageFetchRequest): Promise<ImageFetchResponse> {
     return this.request("/images/fetch", imageFetchResponseSchema, {
       method: "POST",
-      body: imageFetchRequestSchema.parse(input),
+      body: input,
     });
   }
 
@@ -150,7 +142,7 @@ export class HttpSyncApiClient implements AuthGateway, SyncGateway, ImageGateway
     if (input.length === 0) return new Map();
     const response = await this.request("/images/sign", signImagesResponseSchema, {
       method: "POST",
-      body: signImagesRequestSchema.parse({ items: input }),
+      body: { items: input },
     });
     return new Map(response.urls.map((item) => [`${item.uuid}/${item.key}`, item.url]));
   }

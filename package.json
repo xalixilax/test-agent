@@ -5,9 +5,7 @@
   "keywords": [],
   "license": "ISC",
   "author": "",
-  "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
     "app": "pnpm --filter bookmark-manager",
     "ds": "pnpm --filter design-system",
     "lint": "oxlint .",
@@ -16,7 +14,6 @@
     "analyze": "fallow"
   },
   "devDependencies": {
-    "@types/chrome": "^0.2.9",
     "fallow": "^3.25.0",
     "oxfmt": "^0.67.0",
     "oxlint": "^1.82.0"

@@ -20,6 +20,27 @@ interface SyncPanelProps {
 const messageOf = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
+const useActionMessage = () => {
+  const [message, setMessage] = useState<string | null>(null);
+
+  const run = async (
+    action: () => Promise<unknown>,
+    success: string,
+    onSuccess?: () => void,
+  ): Promise<void> => {
+    setMessage(null);
+    try {
+      await action();
+      onSuccess?.();
+      setMessage(success);
+    } catch (error) {
+      setMessage(messageOf(error));
+    }
+  };
+
+  return { message, run };
+};
+
 type PanelMode = "offline" | "register" | "login" | "account";
 
 const panelMode = (status?: SyncStatus): PanelMode => {
@@ -96,18 +117,7 @@ function SyncStatusSummary({ status }: { status?: SyncStatus }) {
 function RegisterForm({ register }: { register: ReturnType<typeof useIdentityRegister> }) {
   const [password, setPassword] = useState("");
   const [inviteCode, setInviteCode] = useState("");
-  const [message, setMessage] = useState<string | null>(null);
-
-  const submit = async () => {
-    setMessage(null);
-    try {
-      await register.mutateAsync({ password, inviteCode });
-      setPassword("");
-      setMessage("Account created and syncing.");
-    } catch (error) {
-      setMessage(messageOf(error));
-    }
-  };
+  const { message, run } = useActionMessage();
 
   return (
     <div className="space-y-2">
@@ -132,7 +142,13 @@ function RegisterForm({ register }: { register: ReturnType<typeof useIdentityReg
       <Button
         className="w-full"
         disabled={register.isPending || password.length < 8 || inviteCode === ""}
-        onClick={() => void submit()}
+        onClick={() =>
+          void run(
+            () => register.mutateAsync({ password, inviteCode }),
+            "Account created and syncing.",
+            () => setPassword(""),
+          )
+        }
       >
         {register.isPending ? "CREATING..." : "CREATE SYNC ACCOUNT"}
       </Button>
@@ -143,18 +159,14 @@ function RegisterForm({ register }: { register: ReturnType<typeof useIdentityReg
 
 function LoginForm({ login }: { login: ReturnType<typeof useIdentityLogin> }) {
   const [password, setPassword] = useState("");
-  const [message, setMessage] = useState<string | null>(null);
+  const { message, run } = useActionMessage();
 
-  const submit = async () => {
-    setMessage(null);
-    try {
-      await login.mutateAsync({ password });
-      setPassword("");
-      setMessage("Logged in.");
-    } catch (error) {
-      setMessage(messageOf(error));
-    }
-  };
+  const submit = () =>
+    run(
+      () => login.mutateAsync({ password }),
+      "Logged in.",
+      () => setPassword(""),
+    );
 
   return (
     <div className="space-y-2">
@@ -192,18 +204,7 @@ function AccountActions({
   logout: ReturnType<typeof useIdentityLogout>;
 }) {
   const [password, setPassword] = useState("");
-  const [message, setMessage] = useState<string | null>(null);
-
-  const run = async (action: () => Promise<unknown>, success: string) => {
-    setMessage(null);
-    try {
-      await action();
-      setPassword("");
-      setMessage(success);
-    } catch (error) {
-      setMessage(messageOf(error));
-    }
-  };
+  const { message, run } = useActionMessage();
 
   const busy = syncNow.isPending || changePassword.isPending || logout.isPending;
 
@@ -242,6 +243,7 @@ function AccountActions({
             void run(
               () => changePassword.mutateAsync({ newPassword: password }),
               "Password changed.",
+              () => setPassword(""),
             )
           }
         >

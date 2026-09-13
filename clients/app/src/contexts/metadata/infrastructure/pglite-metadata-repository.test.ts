@@ -1,6 +1,6 @@
 import { PGlite } from "@electric-sql/pglite";
 import { beforeEach, describe, expect, it } from "vitest";
-import { MIGRATIONS } from "@/shared/db/migrations";
+import { applySchema } from "@/shared/db/pglite";
 import { PgliteMetadataRepository } from "./pglite-metadata-repository";
 import { normalizeUrl } from "../domain/url";
 import { stableUuid } from "../domain/uuid";
@@ -8,9 +8,7 @@ import { stableUuid } from "../domain/uuid";
 const createRepository = async () => {
   const db = new PGlite();
   await db.waitReady;
-  for (const migration of MIGRATIONS) {
-    await db.exec(migration.sql);
-  }
+  await applySchema(db);
   return new PgliteMetadataRepository(db);
 };
 

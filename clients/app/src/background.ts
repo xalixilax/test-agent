@@ -468,4 +468,3 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 void ready.then(ensureAlarms);
-void ready;

@@ -9,8 +9,6 @@ import type {
 export interface StoredSession {
   token: string;
   dataKey: string;
-  wrappedKey: string;
-  salt: string;
 }
 
 export interface SessionStore {
