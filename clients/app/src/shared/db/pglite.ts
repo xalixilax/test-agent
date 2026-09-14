@@ -22,6 +22,11 @@ const SCHEMA_SQL = `
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS bookmark_inventory (
+    chrome_id TEXT PRIMARY KEY,
+    url TEXT NOT NULL,
+    title TEXT NOT NULL
+  );
 `;
 
 export const applySchema = async (client: PGlite): Promise<void> => {

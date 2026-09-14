@@ -16,7 +16,7 @@ const toHex = (bytes: Uint8Array): string =>
 
 export { toHex };
 
-export const sha256Hex = async (value: string): Promise<string> => {
+const sha256Hex = async (value: string): Promise<string> => {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
   return toHex(new Uint8Array(digest));
 };
@@ -94,6 +94,7 @@ export class AuthService {
       authHash: input.newAuthHash,
       wrappedKey: input.newWrappedKey,
     });
+    await this.deps.sessions.deleteOthers(await sha256Hex(token));
   }
 
   async logout(token: string): Promise<void> {

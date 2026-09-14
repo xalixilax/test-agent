@@ -2,11 +2,15 @@ import { z } from "zod";
 
 export const FIELD_NAMES = [
   "url",
+  "title",
   "note",
   "rating",
   "tags",
   "screenshot_url",
   "image_key",
+  "holders",
+  "move",
+  "device_name",
   "__deleted",
 ] as const;
 
@@ -100,20 +104,17 @@ export type SyncPullResponse = z.infer<typeof syncPullResponseSchema>;
 
 export const UUID_PATTERN = /^[0-9a-f-]{8,64}$/u;
 
-export const imageFetchRequestSchema = z.object({
-  uuid: z.string().regex(UUID_PATTERN),
-  url: z.string().url().max(2048),
-});
-
-export type ImageFetchRequest = z.infer<typeof imageFetchRequestSchema>;
-
-export const imageFetchResponseSchema = z.object({
+export const imageStoreResponseSchema = z.object({
   key: z.string().min(1),
   contentType: z.string().min(1),
   size: z.number().int().nonnegative(),
 });
 
-export type ImageFetchResponse = z.infer<typeof imageFetchResponseSchema>;
+export type ImageStoreResponse = z.infer<typeof imageStoreResponseSchema>;
+
+export const imageUploadQuerySchema = z.object({
+  uuid: z.string().regex(UUID_PATTERN),
+});
 
 export const signImagesRequestSchema = z.object({
   items: z

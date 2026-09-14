@@ -2,8 +2,12 @@ import { describe, expect, it } from "vitest";
 import type { FieldName } from "sync-protocol";
 import {
   assembleRecord,
+  parseHolders,
+  parseMove,
   parseRating,
   parseTags,
+  serializeHolders,
+  serializeMove,
   serializeRating,
   serializeTags,
   type LocalField,
@@ -40,12 +44,35 @@ describe("metadata value objects", () => {
     expect(serializeTags(["b", "a", "b"])).toBe('["a","b"]');
   });
 
+  it("parses, dedupes and sorts holders", () => {
+    expect(parseHolders('["b","a","a",""]')).toEqual(["b", "a"]);
+    expect(parseHolders("not json")).toEqual([]);
+    expect(serializeHolders(["b", "a", "a"])).toBe('["a","b"]');
+  });
+
+  it("parses a move intent and rejects malformed values", () => {
+    expect(parseMove('{"target":"device-a","state":"requested"}')).toEqual({
+      target: "device-a",
+      state: "requested",
+    });
+    expect(parseMove('{"target":"device-a","state":"teleporting"}')).toBeUndefined();
+    expect(parseMove('{"state":"requested"}')).toBeUndefined();
+    expect(parseMove("{")).toBeUndefined();
+    expect(parseMove(null)).toBeUndefined();
+    expect(serializeMove({ target: "device-a", state: "done" })).toBe(
+      '{"target":"device-a","state":"done"}',
+    );
+  });
+
   it("assembles a record from fields", () => {
     const record = assembleRecord([
       field("url", "https://a.com/"),
+      field("title", "Example"),
       field("note", "hello"),
       field("rating", "4"),
       field("tags", '["x"]'),
+      field("holders", '["b","a"]'),
+      field("move", '{"target":"b","state":"requested"}'),
       field("screenshot_url", "https://a.com/og.png"),
       field("image_key", "abc"),
     ]);
@@ -53,9 +80,12 @@ describe("metadata value objects", () => {
     expect(record).toMatchObject({
       uuid: "u1",
       url: "https://a.com/",
+      title: "Example",
       note: "hello",
       rating: 4,
       tags: ["x"],
+      holders: ["b", "a"],
+      move: { target: "b", state: "requested" },
       screenshotUrl: "https://a.com/og.png",
       imageKey: "abc",
       deleted: false,

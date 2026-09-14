@@ -2,17 +2,33 @@ import { useState } from "react";
 import { Button } from "@design-system/ui/button";
 import { Folder } from "./folder";
 import { BookmarkCard } from "@/contexts/metadata/presentation/bookmark-card";
+import { RemoteBookmarkCard } from "@/contexts/metadata/presentation/remote-bookmark-card";
+import type { DeviceInfo } from "@/routers/appRouters";
 import { openBookmark } from "../lib/openBookmark";
+import type { RemoteBookmarkItem } from "../lib/remoteBookmarks";
 import type { BookmarkItem } from "../types";
 
 interface BookmarkListProps {
   items: BookmarkItem[];
+  remoteItems: RemoteBookmarkItem[];
   allTags: string[];
+  devices: DeviceInfo[];
   onDelete: (chromeBookmarkId: string) => void;
   onNavigateToFolder: (chromeBookmarkId: string, folderTitle: string) => void;
+  onMove: (url: string, target: string) => void;
+  onMoveHere: (url: string) => void;
 }
 
-function BookmarkList({ items, allTags, onDelete, onNavigateToFolder }: BookmarkListProps) {
+function BookmarkList({
+  items,
+  remoteItems,
+  allTags,
+  devices,
+  onDelete,
+  onNavigateToFolder,
+  onMove,
+  onMoveHere,
+}: BookmarkListProps) {
   const [selectedScreenshot, setSelectedScreenshot] = useState<string | null>(null);
 
   const handleOpenBookmark = (url: string) => {
@@ -24,7 +40,7 @@ function BookmarkList({ items, allTags, onDelete, onNavigateToFolder }: Bookmark
     return new Date(timestamp).toLocaleDateString();
   };
 
-  if (items.length === 0) {
+  if (items.length === 0 && remoteItems.length === 0) {
     return (
       <div className="text-center py-16">
         <div className="text-6xl mb-4">📭</div>
@@ -57,14 +73,33 @@ function BookmarkList({ items, allTags, onDelete, onNavigateToFolder }: Bookmark
               item={item}
               record={item.record}
               allTags={allTags}
+              devices={devices}
               onDelete={onDelete}
               onOpenBookmark={handleOpenBookmark}
               onViewScreenshot={setSelectedScreenshot}
+              onMove={onMove}
               formatDate={formatDate}
             />
           );
         })}
       </div>
+
+      {remoteItems.length > 0 && (
+        <section className="mt-6">
+          <h2 className="text-lg font-black border-b-4 border-black pb-1">FROM OTHER BROWSERS</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mt-3">
+            {remoteItems.map((item) => (
+              <RemoteBookmarkCard
+                key={item.record.uuid}
+                item={item}
+                onOpenBookmark={handleOpenBookmark}
+                onMoveHere={onMoveHere}
+                onViewScreenshot={setSelectedScreenshot}
+              />
+            ))}
+          </div>
+        </section>
+      )}
 
       {selectedScreenshot && (
         <div

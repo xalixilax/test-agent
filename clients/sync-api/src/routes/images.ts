@@ -1,5 +1,5 @@
 import {
-  imageFetchRequestSchema,
+  imageUploadQuerySchema,
   IMAGE_URL_TTL_SECONDS,
   signImagesRequestSchema,
 } from "sync-protocol";
@@ -8,9 +8,11 @@ import { signImagePath, verifyImagePath } from "../application/image-signing";
 import { ApiError } from "../application/ports";
 import { bearerToken, CORS_HEADERS, json, type HttpContext } from "../http";
 
-export const imageFetch = async ({ request, services }: HttpContext): Promise<Response> => {
-  const input = imageFetchRequestSchema.parse(await request.json());
-  return json(await services.images.fetchAndStore(input.uuid, input.url));
+export const imageUpload = async ({ request, url, services }: HttpContext): Promise<Response> => {
+  const { uuid } = imageUploadQuerySchema.parse({ uuid: url.searchParams.get("uuid") });
+  const contentType = request.headers.get("content-type")?.split(";")[0]?.trim() ?? "";
+  const bytes = await request.arrayBuffer();
+  return json(await services.images.uploadImage(uuid, bytes, contentType));
 };
 
 export const imageSign = async ({ request, url, env }: HttpContext): Promise<Response> => {

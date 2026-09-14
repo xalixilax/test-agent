@@ -10,10 +10,14 @@ export class ImageArchiver {
     private readonly isEnabled: () => Promise<boolean>,
   ) {}
 
-  async archive(bookmarkUrl: string, imageUrl: string): Promise<string | null> {
+  async archiveScreenshot(
+    bookmarkUrl: string,
+    bytes: ArrayBuffer,
+    contentType: string,
+  ): Promise<string | null> {
     if (!(await this.isEnabled())) return null;
     const uuid = await stableUuid(normalizeUrl(bookmarkUrl));
-    const { key } = await this.gateway.fetchAndStore({ uuid, url: imageUrl });
+    const { key } = await this.gateway.uploadImage({ uuid, bytes, contentType });
     await this.metadata.setImageKey(bookmarkUrl, key);
     return key;
   }

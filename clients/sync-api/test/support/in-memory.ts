@@ -42,6 +42,12 @@ export class InMemorySessionStore implements SessionStore {
     this.sessions.delete(tokenHash);
   }
 
+  async deleteOthers(tokenHash: string) {
+    for (const hash of this.sessions.keys()) {
+      if (hash !== tokenHash) this.sessions.delete(hash);
+    }
+  }
+
   async deleteExpired(now: number) {
     for (const [tokenHash, session] of this.sessions) {
       if (session.expiresAt <= now) this.sessions.delete(tokenHash);

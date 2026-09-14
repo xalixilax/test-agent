@@ -1,11 +1,46 @@
 import react from "@vitejs/plugin-react";
+import { createHash } from "node:crypto";
+import { readFileSync, writeFileSync } from "node:fs";
 import path from "path";
 import tailwindcss from "@tailwindcss/vite";
 import { resolve } from "path";
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
+
+const devAutoReload = (): Plugin => {
+  let outDir = "";
+  let watching = false;
+  let backgroundHash: string | null = null;
+  const bgStampPath = () => resolve(outDir, "dev-bg-stamp");
+  return {
+    name: "dev-auto-reload",
+    apply: "build",
+    configResolved(config) {
+      outDir = resolve(config.root, config.build.outDir);
+      watching = Boolean(config.build.watch);
+      if (watching) {
+        try {
+          backgroundHash = readFileSync(bgStampPath(), "utf8").trim() || null;
+        } catch {
+          backgroundHash = null;
+        }
+      }
+    },
+    writeBundle(_options, bundle) {
+      if (!watching) return;
+      for (const file of Object.values(bundle)) {
+        if (file.type !== "chunk" || file.fileName !== "background.js") continue;
+        const hash = createHash("sha256").update(file.code).digest("hex");
+        if (hash === backgroundHash) continue;
+        backgroundHash = hash;
+        writeFileSync(bgStampPath(), hash);
+      }
+      writeFileSync(resolve(outDir, "dev-reload-stamp"), String(Date.now()));
+    },
+  };
+};
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), devAutoReload()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

@@ -2,7 +2,7 @@ import type { z } from "zod";
 import {
   authParamsResponseSchema,
   errorResponseSchema,
-  imageFetchResponseSchema,
+  imageStoreResponseSchema,
   loginResponseSchema,
   okResponseSchema,
   signImagesResponseSchema,
@@ -11,8 +11,7 @@ import {
   type AuthParamsResponse,
   type ChangePasswordRequest,
   type FieldEnvelope,
-  type ImageFetchRequest,
-  type ImageFetchResponse,
+  type ImageStoreResponse,
   type LoginRequest,
   type LoginResponse,
   type RegisterRequest,
@@ -131,11 +130,25 @@ export class HttpSyncApiClient implements AuthGateway, SyncGateway, ImageGateway
     return response;
   }
 
-  async fetchAndStore(input: ImageFetchRequest): Promise<ImageFetchResponse> {
-    return this.request("/images/fetch", imageFetchResponseSchema, {
+  async uploadImage(input: {
+    uuid: string;
+    bytes: ArrayBuffer;
+    contentType: string;
+  }): Promise<ImageStoreResponse> {
+    const headers = new Headers({ "content-type": input.contentType });
+    const token = await this.getToken();
+    if (token) headers.set("authorization", `Bearer ${token}`);
+
+    const response = await fetch(`${this.baseUrl}/images/upload?uuid=${input.uuid}`, {
       method: "POST",
-      body: input,
+      headers,
+      body: input.bytes,
     });
+    const body: unknown = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(errorMessage(body, response.status));
+    }
+    return imageStoreResponseSchema.parse(body);
   }
 
   async signImageUrls(input: SignImagesRequest["items"]): Promise<Map<string, string>> {

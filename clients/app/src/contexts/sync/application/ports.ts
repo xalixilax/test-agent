@@ -1,4 +1,5 @@
 import type { FieldEnvelope, FieldName, RemoteField } from "sync-protocol";
+import type { MetadataRepository } from "@/contexts/metadata/domain/metadata-repository";
 
 export interface DirtyField {
   uuid: string;
@@ -43,9 +44,10 @@ export interface Clock {
 }
 
 export interface ImageGateway {
-  fetchAndStore(input: {
+  uploadImage(input: {
     uuid: string;
-    url: string;
+    bytes: ArrayBuffer;
+    contentType: string;
   }): Promise<{ key: string; contentType: string; size: number }>;
 }
 
@@ -55,6 +57,26 @@ export interface SyncEngineDeps {
   cipher: FieldCipher;
   clock: Clock;
   isEnabled(): Promise<boolean>;
+}
+
+export interface BookmarkSnapshot {
+  id: string;
+  url: string;
+  title: string;
+}
+
+export interface BookmarkGateway {
+  list(): Promise<BookmarkSnapshot[]>;
+  findByUrl(url: string): Promise<BookmarkSnapshot[]>;
+  create(input: { url: string; title: string }): Promise<BookmarkSnapshot>;
+  remove(id: string): Promise<void>;
+}
+
+export interface MoveCoordinatorDeps {
+  repository: MetadataRepository;
+  bookmarks: BookmarkGateway;
+  clock: Clock;
+  onChange?: () => void;
 }
 
 export interface SyncResult {

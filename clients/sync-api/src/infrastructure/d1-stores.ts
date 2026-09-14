@@ -69,6 +69,10 @@ export class D1SessionStore implements SessionStore {
     await this.db.prepare("DELETE FROM sessions WHERE token_hash = ?").bind(tokenHash).run();
   }
 
+  async deleteOthers(tokenHash: string): Promise<void> {
+    await this.db.prepare("DELETE FROM sessions WHERE token_hash != ?").bind(tokenHash).run();
+  }
+
   async deleteExpired(now: number): Promise<void> {
     await this.db.prepare("DELETE FROM sessions WHERE expires_at <= ?").bind(now).run();
   }

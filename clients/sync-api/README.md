@@ -45,6 +45,9 @@ pnpm --filter sync-api dev
   `(updated_at, device_id)` stamps without decrypting payloads.
 - `POST /sync` tombstones (`field = "__deleted"`) also purge that record's R2
   objects.
-- Images are fetched server-side (extension asks the Worker to archive a URL)
-  and served back through the authenticated `/images/:uuid/:key` route.
-  OG images are public content, so they are not end-to-end encrypted.
+- Images: a site's Open Graph image is stored as a plain link in the record
+  (`screenshot_url`), so it is served by the site itself. When a page has no
+  OG image, the extension captures a page screenshot, uploads the bytes, and
+  stores the R2 key (`image_key`); the Worker serves it back through the
+  authenticated `/images/:uuid/:key` route with signed URLs.
+  Screenshots are not end-to-end encrypted, but the bucket is private.

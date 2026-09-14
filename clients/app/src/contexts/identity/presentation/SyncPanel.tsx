@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@design-system/ui/button";
 import { Input } from "@design-system/ui/input";
 import { Label } from "@design-system/ui/label";
-import { useBackfillImages } from "@/presentation/hooks/useMetadata";
+import { useBackfillImages, useDevices, useSetDeviceName } from "@/presentation/hooks/useMetadata";
 import {
   useIdentityChangePassword,
   useIdentityLogin,
@@ -89,12 +89,15 @@ export function SyncPanel({ onClose }: SyncPanelProps) {
         {mode === "register" && <RegisterForm register={register} />}
         {mode === "login" && <LoginForm login={login} />}
         {mode === "account" && (
-          <AccountActions
-            syncNow={syncNow}
-            backfill={backfill}
-            changePassword={changePassword}
-            logout={logout}
-          />
+          <>
+            <DeviceSection />
+            <AccountActions
+              syncNow={syncNow}
+              backfill={backfill}
+              changePassword={changePassword}
+              logout={logout}
+            />
+          </>
         )}
       </div>
     </div>
@@ -192,6 +195,44 @@ function LoginForm({ login }: { login: ReturnType<typeof useIdentityLogin> }) {
   );
 }
 
+function DeviceSection() {
+  const { data: devices } = useDevices();
+  const setDeviceName = useSetDeviceName();
+  const [name, setName] = useState("");
+  const self = devices?.find((device) => device.isSelf);
+
+  useEffect(() => {
+    if (self) setName(self.name);
+  }, [self]);
+
+  return (
+    <div className="space-y-2 border-2 border-dashed border-gray-300 p-2">
+      <Label htmlFor="device-name">THIS BROWSER'S NAME</Label>
+      <div className="flex gap-2">
+        <Input id="device-name" value={name} onChange={(e) => setName(e.target.value)} />
+        <Button
+          disabled={setDeviceName.isPending || name.trim() === "" || name.trim() === self?.name}
+          onClick={() => setDeviceName.mutate({ name: name.trim() })}
+        >
+          {setDeviceName.isPending ? "SAVING..." : "SAVE"}
+        </Button>
+      </div>
+      <p className="text-xs font-bold">CONNECTED BROWSERS</p>
+      <ul className="text-xs font-bold space-y-1">
+        {(devices ?? []).map((device) => (
+          <li key={device.deviceId}>
+            {device.name.toUpperCase()}
+            {device.isSelf && " (THIS BROWSER)"}
+          </li>
+        ))}
+      </ul>
+      {setDeviceName.isError && (
+        <p className="text-xs font-bold text-red-600">Could not save the browser name.</p>
+      )}
+    </div>
+  );
+}
+
 function AccountActions({
   syncNow,
   backfill,
@@ -224,7 +265,7 @@ function AccountActions({
           disabled={backfill.isPending}
           onClick={() => backfill.mutate()}
         >
-          {backfill.isPending ? "STARTING..." : "ARCHIVE IMAGES"}
+          {backfill.isPending ? "STARTING..." : "FETCH IMAGES"}
         </Button>
       </div>
       <Label htmlFor="new-password">NEW PASSWORD (MIN 8 CHARS)</Label>

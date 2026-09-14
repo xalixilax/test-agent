@@ -10,6 +10,7 @@ const client = createWorkerClient<AppRouter>();
 const invalidateMetadata = (queryClient: ReturnType<typeof useQueryClient>) => {
   void queryClient.invalidateQueries({ queryKey: ["metadataRecords"] });
   void queryClient.invalidateQueries({ queryKey: ["syncStatus"] });
+  void queryClient.invalidateQueries({ queryKey: ["devices"] });
 };
 
 const useMetadataRecords = () =>
@@ -57,10 +58,26 @@ export const useCaptureImage = () =>
 export const useBackfillImages = () =>
   useInvalidatingMutation(() => client.backfillImages.mutate());
 
+export const useDevices = () =>
+  useQuery({
+    queryKey: ["devices"],
+    queryFn: () => client.listDevices.query(),
+  });
+
+export const useSetDeviceName = () =>
+  useInvalidatingMutation((input: { name: string }) => client.setDeviceName.mutate(input));
+
+export const useMoveBookmark = () =>
+  useInvalidatingMutation((input: { url: string; target: string }) =>
+    client.moveBookmark.mutate(input),
+  );
+
 export const useMetadataEvents = (): void => {
   const queryClient = useQueryClient();
 
   useEffect(() => {
+    if (typeof chrome === "undefined" || !chrome.runtime) return;
+
     const handler = (message: unknown) => {
       const action = (message as { action?: string } | null)?.action;
       if (action === "dataChanged" || action === "bookmarkChanged") {

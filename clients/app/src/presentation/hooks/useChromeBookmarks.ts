@@ -10,6 +10,12 @@ export const useChromeBookmarksTree = (folderId: string | null) =>
     },
   });
 
+export const useAllChromeBookmarks = () =>
+  useQuery({
+    queryKey: ["chromeBookmarks", "all"],
+    queryFn: async () => chrome.bookmarks.getTree(),
+  });
+
 export const flattenBookmarks = (
   nodes: chrome.bookmarks.BookmarkTreeNode[],
 ): chrome.bookmarks.BookmarkTreeNode[] => {

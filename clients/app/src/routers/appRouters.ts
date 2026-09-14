@@ -14,8 +14,13 @@ export interface SyncStatus {
 }
 
 export interface CaptureResult {
-  screenshotUrl: string | null;
   imageKey: string | null;
+}
+
+export interface DeviceInfo {
+  deviceId: string;
+  name: string;
+  isSelf: boolean;
 }
 
 export interface AppRouterContext {
@@ -30,6 +35,9 @@ export interface AppRouterContext {
   backfillImages(): Promise<{ started: boolean }>;
   syncNow(): Promise<SyncStatus>;
   status(): Promise<SyncStatus>;
+  listDevices(): Promise<DeviceInfo[]>;
+  setDeviceName(name: string): Promise<void>;
+  moveBookmark(url: string, target: string): Promise<void>;
   identityStatus(): Promise<IdentityStatus>;
   register(password: string, inviteCode: string): Promise<void>;
   login(password: string): Promise<void>;
@@ -102,6 +110,26 @@ export const createAppRouter = (context: AppRouterContext) =>
 
     syncNow: mutation({
       handler: (): Promise<SyncStatus> => context.syncNow(),
+    }),
+
+    listDevices: query({
+      handler: (): Promise<DeviceInfo[]> => context.listDevices(),
+    }),
+
+    setDeviceName: mutation({
+      input: z.object({ name: z.string().min(1).max(64) }),
+      handler: async (input) => {
+        await context.setDeviceName(input.name);
+        return { ok: true as const };
+      },
+    }),
+
+    moveBookmark: mutation({
+      input: z.object({ url: z.string().min(1), target: z.string().min(1) }),
+      handler: async (input) => {
+        await context.moveBookmark(input.url, input.target);
+        return { ok: true as const };
+      },
     }),
 
     identityStatus: query({

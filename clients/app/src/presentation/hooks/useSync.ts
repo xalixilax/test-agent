@@ -66,6 +66,8 @@ export const useFetchProgress = (): FetchProgress => {
   });
 
   useEffect(() => {
+    if (typeof chrome === "undefined" || !chrome.runtime) return;
+
     const handler = (message: unknown) => {
       const data = message as (FetchProgress & { action?: string }) | null;
       if (data?.action === "fetchProgress") {

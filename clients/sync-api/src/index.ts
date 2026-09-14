@@ -1,3 +1,4 @@
+import { MAX_IMAGE_BYTES } from "sync-protocol";
 import { AuthError, AuthService } from "./application/auth-service";
 import { ImageService } from "./application/image-service";
 import { ApiError } from "./application/ports";
@@ -14,12 +15,14 @@ import {
 import { D1AccountStore, D1FieldStore, D1SessionStore } from "./infrastructure/d1-stores";
 import { R2BlobStore } from "./infrastructure/r2-blob-store";
 import { authChangePassword, authLogin, authLogout, authParams, authRegister } from "./routes/auth";
-import { imageFetch, imageServe, imageSign } from "./routes/images";
+import { imageServe, imageSign, imageUpload } from "./routes/images";
 import { syncPull, syncPush } from "./routes/sync";
 
 export type { Env } from "./env";
 
 const MAX_PAYLOAD_BYTES = 2_000_000;
+
+const RATE_LIMITED_PATHS = new Set(["/auth/login", "/auth/register"]);
 
 const ROUTES: RouteDefinition[] = [
   {
@@ -52,9 +55,9 @@ const ROUTES: RouteDefinition[] = [
   { method: "POST", path: /^\/sync$/u, auth: true, handler: syncPush },
   {
     method: "POST",
-    path: /^\/images\/fetch$/u,
+    path: /^\/images\/upload$/u,
     auth: true,
-    handler: imageFetch,
+    handler: imageUpload,
   },
   {
     method: "POST",
@@ -118,14 +121,22 @@ export const handleRequest = async (request: Request, env: Env): Promise<Respons
     return new Response(null, { status: 204, headers: CORS_HEADERS });
   }
 
+  const url = new URL(request.url);
   const contentLength = Number(request.headers.get("content-length") ?? "0");
-  if (contentLength > MAX_PAYLOAD_BYTES) {
+  const payloadLimit = url.pathname === "/images/upload" ? MAX_IMAGE_BYTES : MAX_PAYLOAD_BYTES;
+  if (contentLength > payloadLimit) {
     return json({ error: "Payload too large" }, 413);
   }
 
-  const url = new URL(request.url);
   const matched = matchRoute(request.method, url.pathname);
   if (!matched) return json({ error: "Not found" }, 404);
+
+  if (RATE_LIMITED_PATHS.has(url.pathname)) {
+    const { success } = (await env.AUTH_RATE_LIMITER?.limit({
+      key: request.headers.get("cf-connecting-ip") ?? "unknown",
+    })) ?? { success: true };
+    if (!success) return json({ error: "Too many requests" }, 429);
+  }
 
   const services = createServices(env);
   const context: HttpContext = {

@@ -83,15 +83,66 @@ export const extractOgImageFromTab = async (tabId: number): Promise<string | nul
   }
 };
 
-export const discoverOgImage = async (url: string): Promise<string | null> => {
+const withPageTab = async <T>(
+  url: string,
+  run: (tabId: number) => Promise<T>,
+): Promise<T | null> => {
   const tab = await chrome.tabs.create({ url, active: false });
   if (!tab.id) return null;
   try {
     await waitForTabComplete(tab.id);
-    return await extractOgImageFromTab(tab.id);
+    return await run(tab.id);
   } catch {
     return null;
   } finally {
     await chrome.tabs.remove(tab.id).catch(() => undefined);
   }
+};
+
+export const discoverOgImage = (url: string): Promise<string | null> =>
+  withPageTab(url, extractOgImageFromTab);
+
+export interface PageCapture {
+  linkUrl: string | null;
+  dataUrl: string | null;
+}
+
+export const capturePage = (url: string): Promise<PageCapture | null> =>
+  withPageTab(url, async (tabId) => ({
+    linkUrl: await extractOgImageFromTab(tabId),
+    dataUrl: await captureTabScreenshot(tabId),
+  }));
+
+// captureVisibleTab only captures the active tab of a window, so bring the tab
+// to the front for the shot and hand focus back to whatever was active before.
+export const captureTabScreenshot = async (tabId: number): Promise<string | null> => {
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    const [previouslyActive] = await chrome.tabs.query({ active: true, windowId: tab.windowId });
+    await chrome.tabs.update(tabId, { active: true });
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, {
+      format: "jpeg",
+      quality: 70,
+    });
+    if (previouslyActive?.id && previouslyActive.id !== tabId) {
+      await chrome.tabs.update(previouslyActive.id, { active: true }).catch(() => undefined);
+    }
+    return dataUrl;
+  } catch {
+    return null;
+  }
+};
+
+export const dataUrlToBytes = (
+  dataUrl: string,
+): { bytes: ArrayBuffer; contentType: string } | null => {
+  const match = /^data:(image\/[a-z0-9.+-]+);base64,([\s\S]+)$/iu.exec(dataUrl);
+  if (!match) return null;
+  const binary = atob(match[2]);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return { bytes: bytes.buffer, contentType: match[1] };
 };

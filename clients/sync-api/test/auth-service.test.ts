@@ -79,10 +79,11 @@ describe("AuthService", () => {
     await expect(auth.authenticate(session.token)).rejects.toThrow();
   });
 
-  it("changes the password behind the session", async () => {
-    const { auth, accounts } = build();
+  it("changes the password and revokes other sessions", async () => {
+    const { auth, accounts, sessions } = build();
     await register(auth);
     const session = await auth.login({ authHash: "hash" });
+    const other = await auth.login({ authHash: "hash" });
     await auth.changePassword(
       { newSalt: "salt2", newAuthHash: "hash2", newWrappedKey: "wrapped2" },
       session.token,
@@ -92,6 +93,9 @@ describe("AuthService", () => {
       authHash: "hash2",
       wrappedKey: "wrapped2",
     });
+    await expect(auth.authenticate(session.token)).resolves.toBeUndefined();
+    await expect(auth.authenticate(other.token)).rejects.toThrow("Invalid or expired session");
+    expect(sessions.sessions.size).toBe(1);
     await expect(auth.login({ authHash: "hash" })).rejects.toThrow();
     await expect(auth.login({ authHash: "hash2" })).resolves.toMatchObject({
       wrappedKey: "wrapped2",

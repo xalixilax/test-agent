@@ -1,0 +1,1 @@
+- Always put temporary files in `./.tmp/`

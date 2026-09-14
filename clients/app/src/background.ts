@@ -7,9 +7,14 @@ import { ChromeSessionStore } from "./contexts/identity/infrastructure/chrome-se
 import { HttpSyncApiClient } from "./contexts/sync/infrastructure/http-sync-api-client";
 import { DataKeyCipher } from "./contexts/sync/infrastructure/data-key-cipher";
 import { SystemClock } from "./contexts/sync/infrastructure/system-clock";
+import { ChromeBookmarkGateway } from "./contexts/sync/infrastructure/chrome-bookmark-gateway";
 import { SyncEngine } from "./contexts/sync/application/sync-engine";
+import { MoveCoordinator } from "./contexts/sync/application/move-coordinator";
 import { ImageArchiver } from "./contexts/sync/application/image-archiver";
 import {
+  capturePage,
+  captureTabScreenshot,
+  dataUrlToBytes,
   discoverOgImage,
   extractOgImageFromTab,
 } from "./contexts/sync/infrastructure/og-image-discovery";
@@ -19,12 +24,18 @@ import {
   createAppRouter,
   type AppRouterContext,
   type CaptureResult,
+  type DeviceInfo,
   type SyncStatus,
 } from "./routers/appRouters";
 import { createWorkerHandler, type WorkerRequest, type WorkerResponse } from "./shared/rpc/router";
 import { SYNC_API_URL } from "./shared/config";
+import { detectDeviceName } from "./shared/device-name";
+import { watchForDevReload } from "./shared/dev-reload";
 
 const LAST_SYNC_KEY = "sync.lastAt";
+
+watchForDevReload();
+
 const LAST_ERROR_KEY = "sync.lastError";
 const VISITED_URLS_KEY = "visitedUrls";
 const AUTO_CAPTURE_DELAY_MS = 2_000;
@@ -38,6 +49,7 @@ interface Services {
   api: HttpSyncApiClient;
   engine: SyncEngine;
   archiver: ImageArchiver;
+  coordinator: MoveCoordinator;
 }
 
 let services: Services | null = null;
@@ -116,6 +128,15 @@ const initServices = async (): Promise<Services> => {
     metadata,
     async () => (await sessionStore.get()) !== null,
   );
+  const coordinator = new MoveCoordinator({
+    repository,
+    bookmarks: new ChromeBookmarkGateway(),
+    clock,
+    onChange: () => {
+      notify({ action: "dataChanged" });
+      scheduleSync();
+    },
+  });
 
   await migrateLegacyMetadata({
     db,
@@ -133,12 +154,49 @@ const initServices = async (): Promise<Services> => {
     api,
     engine,
     archiver,
+    coordinator,
   };
 };
 
 const requireServices = (): Services => {
   if (!services) throw new Error("Services are not ready");
   return services;
+};
+
+const detectThisDeviceName = async (): Promise<string> => {
+  const braveApi = (navigator as Navigator & { brave?: { isBrave?: () => Promise<boolean> } })
+    .brave;
+  const brave = (await braveApi?.isBrave?.().catch(() => false)) ?? false;
+  return detectDeviceName({ userAgent: navigator.userAgent, brave });
+};
+
+const ensureDeviceName = async (current: Services): Promise<void> => {
+  const selfId = await current.repository.getDeviceId();
+  const names = await current.repository.listDeviceNames();
+  if (names.some((entry) => entry.deviceId === selfId)) return;
+  await current.metadata.setDeviceName(await detectThisDeviceName());
+};
+
+const listDevices = async (): Promise<DeviceInfo[]> => {
+  const current = requireServices();
+  const selfId = await current.repository.getDeviceId();
+  const names = await current.repository.listDeviceNames();
+  const byId = new Map(names.map((entry) => [entry.deviceId, entry.name]));
+  if (!byId.has(selfId)) byId.set(selfId, await detectThisDeviceName());
+  return [...byId.entries()]
+    .map(([deviceId, name]) => ({ deviceId, name, isSelf: deviceId === selfId }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+};
+
+const reconcileBookmarks = async (): Promise<void> => {
+  try {
+    const current = await ready;
+    await current.coordinator.reconcile();
+  } catch (error) {
+    console.error("[background] bookmark reconcile failed", error);
+  } finally {
+    notify({ action: "bookmarkChanged" });
+  }
 };
 
 const buildStatus = async (): Promise<SyncStatus> => {
@@ -182,6 +240,7 @@ const runSync = async (): Promise<SyncStatus> => {
   try {
     const result = await current.engine.syncNow();
     if (!result.skipped) {
+      await current.coordinator.reconcile();
       await current.repository.setSyncState(LAST_SYNC_KEY, String(now()));
       await current.repository.setSyncState(
         LAST_ERROR_KEY,
@@ -242,12 +301,27 @@ const listRecordViews = async (): Promise<MetadataRecordView[]> => {
 
 const captureImage = async (url: string): Promise<CaptureResult> => {
   const current = requireServices();
-  const screenshotUrl = await discoverOgImage(url);
-  if (!screenshotUrl) return { screenshotUrl: null, imageKey: null };
+  const capture = await capturePage(url);
+  if (!capture) return { imageKey: null };
 
-  await current.metadata.setScreenshotUrl(url, screenshotUrl);
-  const imageKey = await current.archiver.archive(url, screenshotUrl);
-  return { screenshotUrl, imageKey };
+  const decoded = capture.dataUrl ? dataUrlToBytes(capture.dataUrl) : null;
+  if (decoded) {
+    try {
+      const imageKey = await current.archiver.archiveScreenshot(
+        url,
+        decoded.bytes,
+        decoded.contentType,
+      );
+      if (imageKey) return { imageKey };
+    } catch {
+      // Upload failed; fall back to the site's own image below.
+    }
+  }
+
+  if (capture.linkUrl) {
+    await current.metadata.setScreenshotUrl(url, capture.linkUrl);
+  }
+  return { imageKey: null };
 };
 
 const backfillImages = async (): Promise<{ started: boolean }> => {
@@ -262,9 +336,10 @@ const backfillImages = async (): Promise<{ started: boolean }> => {
       );
       const records = await current.repository.listRecords();
       const byUrl = new Map(records.map((record) => [normalizeUrl(record.url), record]));
-      const missing = bookmarks.filter(
-        (bookmark) => !byUrl.get(normalizeUrl(bookmark.url!))?.imageKey,
-      );
+      const missing = bookmarks.filter((bookmark) => {
+        const record = byUrl.get(normalizeUrl(bookmark.url!));
+        return !record?.imageKey && !record?.screenshotUrl;
+      });
 
       let success = 0;
       let failed = 0;
@@ -276,18 +351,12 @@ const backfillImages = async (): Promise<{ started: boolean }> => {
           batch.map(async (bookmark) => {
             const url = bookmark.url!;
             try {
-              let imageUrl = byUrl.get(normalizeUrl(url))?.screenshotUrl ?? null;
-              if (!imageUrl) {
-                imageUrl = await discoverOgImage(url);
-                if (imageUrl) {
-                  await current.metadata.setScreenshotUrl(url, imageUrl);
-                }
-              }
+              const imageUrl = await discoverOgImage(url);
               if (!imageUrl) {
                 failed += 1;
                 return;
               }
-              await current.archiver.archive(url, imageUrl);
+              await current.metadata.setScreenshotUrl(url, imageUrl);
               success += 1;
             } catch {
               failed += 1;
@@ -325,14 +394,24 @@ const buildContext = (current: Services): AppRouterContext => ({
   backfillImages,
   syncNow: runSync,
   status: buildStatus,
+  listDevices,
+  setDeviceName: (name) => current.metadata.setDeviceName(name),
+  moveBookmark: async (url, target) => {
+    await current.coordinator.requestMove(url, target);
+    await runSync();
+    // Reconcile even when sync is disabled so a local "move here" still lands.
+    await current.coordinator.reconcile();
+  },
   identityStatus: () => current.identity.status(),
   register: async (password, inviteCode) => {
     await current.identity.register(password, inviteCode);
+    await ensureDeviceName(current);
     await runSync();
     void backfillImages();
   },
   login: async (password) => {
     await current.identity.login(password);
+    await ensureDeviceName(current);
     await runSync();
     void backfillImages();
   },
@@ -377,6 +456,19 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
   return true;
 });
 
+const captureFromOpenTab = async (current: Services, tabId: number, url: string): Promise<void> => {
+  const imageUrl = await extractOgImageFromTab(tabId);
+  if (imageUrl) {
+    await current.metadata.setScreenshotUrl(url, imageUrl);
+    return;
+  }
+
+  const dataUrl = await captureTabScreenshot(tabId);
+  const decoded = dataUrl ? dataUrlToBytes(dataUrl) : null;
+  if (!decoded) return;
+  await current.archiver.archiveScreenshot(url, decoded.bytes, decoded.contentType);
+};
+
 const captureForVisitedBookmark = async (tabId: number, url: string): Promise<void> => {
   const current = services;
   if (!current) return;
@@ -391,11 +483,7 @@ const captureForVisitedBookmark = async (tabId: number, url: string): Promise<vo
   if (visited.has(url)) return;
   await addVisitedUrl(url);
 
-  const screenshotUrl = await extractOgImageFromTab(tabId);
-  if (!screenshotUrl) return;
-
-  await current.metadata.setScreenshotUrl(url, screenshotUrl);
-  await current.archiver.archive(url, screenshotUrl);
+  await captureFromOpenTab(current, tabId, url);
 };
 
 const autoCaptureOnVisit = async (
@@ -417,28 +505,16 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   void autoCaptureOnVisit(tabId, changeInfo, tab);
 });
 
-chrome.bookmarks.onRemoved.addListener(async (_id, removeInfo) => {
-  try {
-    const current = services;
-    const url = removeInfo.node.url;
-    if (current && url) {
-      const remaining = await chrome.bookmarks.search({ url });
-      if (remaining.length === 0) {
-        await current.metadata.purge(url);
-        void runSync();
-      }
-    }
-  } finally {
-    notify({ action: "bookmarkChanged" });
-  }
-});
-
+// Possession is re-derived from the bookmark tree on every event, so deleting a
+// bookmark only drops this browser from the record's holders instead of purging
+// metadata other browsers still rely on.
 for (const event of [
   chrome.bookmarks.onCreated,
   chrome.bookmarks.onChanged,
   chrome.bookmarks.onMoved,
+  chrome.bookmarks.onRemoved,
 ]) {
-  event.addListener(() => notify({ action: "bookmarkChanged" }));
+  event.addListener(() => void reconcileBookmarks());
 }
 
 const ensureAlarms = async (): Promise<void> => {
@@ -468,3 +544,7 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 void ready.then(ensureAlarms);
+void ready
+  .then(ensureDeviceName)
+  .then(() => reconcileBookmarks())
+  .catch((error: unknown) => console.error("[background] startup reconcile failed", error));

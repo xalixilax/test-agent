@@ -12,6 +12,7 @@ import { Rating } from "./rating";
 import { TagGroup } from "./tag-group";
 import { formatDisplayUrl } from "@/shared/format";
 import type { MetadataRecordView } from "../domain/metadata";
+import type { DeviceInfo } from "@/routers/appRouters";
 import {
   useCaptureImage,
   useClearScreenshot,
@@ -24,9 +25,11 @@ interface BookmarkCardProps {
   item: chrome.bookmarks.BookmarkTreeNode;
   record?: MetadataRecordView;
   allTags: string[];
+  devices: DeviceInfo[];
   onDelete: (chromeBookmarkId: string) => void;
   onOpenBookmark: (url: string) => void;
   onViewScreenshot: (screenshot: string) => void;
+  onMove: (url: string, target: string) => void;
   formatDate: (timestamp?: Date | null) => string;
 }
 
@@ -41,23 +44,44 @@ export function BookmarkCard({
   item,
   record,
   allTags,
+  devices,
   onDelete,
   onOpenBookmark,
   onViewScreenshot,
+  onMove,
   formatDate,
 }: BookmarkCardProps) {
   const setNote = useSetNote();
   const setRating = useSetRating();
   const setTags = useSetTags();
+  const [isEditing, setIsEditing] = useState(false);
   const { screenshot, rating, tags, note } = recordDefaults(record);
   const pendingNote = setNote.variables?.note;
+  const pendingMove = record?.move?.state === "requested" ? record.move : undefined;
   const addedAt = item.dateAdded ? new Date(item.dateAdded) : null;
 
   return (
     <Card className="relative card-brutal p-3 sm:p-4" style={{ background: "var(--color-white)" }}>
       <div className="flex flex-col h-full gap-2">
-        <BookmarkCardMenu item={item} hasScreenshot={!!screenshot} onDelete={onDelete} />
-        <BookmarkIdentity item={item} onOpenBookmark={onOpenBookmark} />
+        <BookmarkCardMenu
+          item={item}
+          record={record}
+          devices={devices}
+          hasScreenshot={!!screenshot}
+          onDelete={onDelete}
+          onEdit={() => setIsEditing(true)}
+          onMove={onMove}
+        />
+        {pendingMove && (
+          <span className="text-xs font-black px-2 py-0.5 border-3 border-black self-start bg-yellow-background">
+            ⏳ MOVING TO {deviceLabel(devices, pendingMove.target).toUpperCase()}...
+          </span>
+        )}
+        {isEditing ? (
+          <BookmarkEditForm item={item} onDone={() => setIsEditing(false)} />
+        ) : (
+          <BookmarkIdentity item={item} onOpenBookmark={onOpenBookmark} />
+        )}
         <ScreenshotSection screenshot={screenshot} title={item.title} onView={onViewScreenshot} />
 
         <Rating
@@ -94,15 +118,25 @@ export function BookmarkCard({
 
 function BookmarkCardMenu({
   item,
+  record,
+  devices,
   hasScreenshot,
   onDelete,
+  onEdit,
+  onMove,
 }: {
   item: chrome.bookmarks.BookmarkTreeNode;
+  record?: MetadataRecordView;
+  devices: DeviceInfo[];
   hasScreenshot: boolean;
   onDelete: (chromeBookmarkId: string) => void;
+  onEdit: () => void;
+  onMove: (url: string, target: string) => void;
 }) {
   const captureImage = useCaptureImage();
   const clearScreenshot = useClearScreenshot();
+  const otherDevices = devices.filter((device) => !device.isSelf);
+  const pendingMove = record?.move?.state === "requested" ? record.move : undefined;
 
   return (
     <DropdownMenu>
@@ -113,15 +147,48 @@ function BookmarkCardMenu({
       >
         <EllipsisVertical />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-40">
+      <DropdownMenuContent align="end" className="w-48">
+        <DropdownMenuItem
+          onClick={(e) => {
+            e.stopPropagation();
+            onEdit();
+          }}
+        >
+          ✏️ EDIT
+        </DropdownMenuItem>
+        {item.url &&
+          (pendingMove ? (
+            <DropdownMenuItem disabled>
+              {`⏳ MOVING TO ${deviceLabel(devices, pendingMove.target).toUpperCase()}...`}
+            </DropdownMenuItem>
+          ) : (
+            otherDevices.map((device) => {
+              const failedMove =
+                record?.move?.state === "failed" && record.move.target === device.deviceId;
+              return (
+                <DropdownMenuItem
+                  key={device.deviceId}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onMove(item.url!, device.deviceId);
+                  }}
+                >
+                  {failedMove
+                    ? `🔁 RETRY MOVE TO ${device.name.toUpperCase()}`
+                    : `➡️ MOVE TO ${device.name.toUpperCase()}`}
+                </DropdownMenuItem>
+              );
+            })
+          ))}
         {item.url && (
           <DropdownMenuItem
+            disabled={captureImage.isPending}
             onClick={(e) => {
               e.stopPropagation();
               captureImage.mutate({ url: item.url! });
             }}
           >
-            📷 SCREENSHOT
+            {captureImage.isPending ? "📷 CAPTURING..." : "📷 SCREENSHOT"}
           </DropdownMenuItem>
         )}
         {hasScreenshot && item.url && (
@@ -182,6 +249,74 @@ function BookmarkIdentity({
   );
 }
 
+function BookmarkEditForm({
+  item,
+  onDone,
+}: {
+  item: chrome.bookmarks.BookmarkTreeNode;
+  onDone: () => void;
+}) {
+  const [title, setTitle] = useState(item.title ?? "");
+  const [url, setUrl] = useState(item.url ?? "");
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmedUrl = url.trim();
+    if (!trimmedUrl) return;
+
+    setIsSaving(true);
+    setError(null);
+    try {
+      await chrome.bookmarks.update(item.id, {
+        title: title.trim(),
+        url: withScheme(trimmedUrl),
+      });
+      onDone();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save bookmark");
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col gap-1">
+      <input
+        type="text"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        placeholder="Title"
+        className="w-full input-brutal text-sm font-bold px-2 py-1"
+        autoFocus
+      />
+      <input
+        type="text"
+        value={url}
+        onChange={(e) => setUrl(e.target.value)}
+        placeholder="https://example.com"
+        className="w-full input-brutal text-xs font-bold px-2 py-1"
+        required
+      />
+      {error && <p className="text-xs font-bold text-red-600">{error}</p>}
+      <div className="flex gap-2">
+        <Button type="submit" className="flex-1" size="sm" disabled={isSaving}>
+          {isSaving ? "SAVING..." : "SAVE"}
+        </Button>
+        <Button type="button" onClick={onDone} className="flex-1" size="sm" disabled={isSaving}>
+          CANCEL
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+const withScheme = (url: string): string =>
+  /^[a-z][a-z\d+.-]*:/iu.test(url) ? url : `https://${url}`;
+
+const deviceLabel = (devices: DeviceInfo[], deviceId: string): string =>
+  devices.find((device) => device.deviceId === deviceId)?.name ?? "Other browser";
+
 function ScreenshotSection({
   screenshot,
   title,
@@ -195,11 +330,11 @@ function ScreenshotSection({
 
   return (
     <div
-      className="w-full h-20 sm:h-24 border-3 border-black mb-2 sm:mb-3 overflow-hidden cursor-pointer hover:opacity-80 transition-opacity"
+      className="w-full border-3 border-black mb-2 sm:mb-3 cursor-pointer hover:opacity-80 transition-opacity"
       onClick={() => onView(screenshot)}
       title="Click to view full screenshot"
     >
-      <img src={screenshot} alt={`Screenshot of ${title}`} className="w-full h-full object-cover" />
+      <img src={screenshot} alt={`Screenshot of ${title}`} className="w-full h-auto" />
     </div>
   );
 }

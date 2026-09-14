@@ -16,6 +16,7 @@ export interface SessionStore {
   create(tokenHash: string, expiresAt: number, createdAt: number): Promise<void>;
   find(tokenHash: string, now: number): Promise<{ expiresAt: number } | null>;
   delete(tokenHash: string): Promise<void>;
+  deleteOthers(tokenHash: string): Promise<void>;
   deleteExpired(now: number): Promise<void>;
 }
 

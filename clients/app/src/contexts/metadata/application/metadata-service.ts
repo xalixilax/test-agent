@@ -57,4 +57,9 @@ export class MetadataService {
     await this.repository.purgeByUrl(url, this.clock.now(), deviceId);
     this.onChange?.();
   }
+
+  async setDeviceName(name: string): Promise<void> {
+    await this.repository.setDeviceName(name.trim(), this.clock.now());
+    this.onChange?.();
+  }
 }

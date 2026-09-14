@@ -12,13 +12,23 @@
     {
       "binding": "DB",
       "database_name": "bookmark-sync",
-      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      "database_id": "8f87a588-fb9d-46a6-a131-0bfd8987b5ac",
     },
   ],
   "r2_buckets": [
     {
       "binding": "IMAGES",
       "bucket_name": "bookmark-sync-images",
+    },
+  ],
+  "ratelimits": [
+    {
+      "name": "AUTH_RATE_LIMITER",
+      "namespace_id": "1001",
+      "simple": {
+        "limit": 10,
+        "period": 60,
+      },
     },
   ],
 }

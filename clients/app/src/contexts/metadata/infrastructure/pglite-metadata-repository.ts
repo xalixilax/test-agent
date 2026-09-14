@@ -3,7 +3,12 @@ import { type FieldName } from "sync-protocol";
 import { assembleRecord, type LocalField, type MetadataRecord } from "../domain/metadata";
 import { normalizeUrl } from "../domain/url";
 import { stableUuid } from "../domain/uuid";
-import type { MetadataRepository, SetFieldByUrlInput } from "../domain/metadata-repository";
+import type {
+  BookmarkInventoryEntry,
+  DeviceNameEntry,
+  MetadataRepository,
+  SetFieldByUrlInput,
+} from "../domain/metadata-repository";
 import type {
   DecryptedChange,
   DirtyField,
@@ -226,6 +231,47 @@ export class PgliteMetadataRepository implements MetadataRepository, MetadataSyn
       ],
     );
     return result.rows.length > 0;
+  }
+
+  async listBookmarkInventory(): Promise<BookmarkInventoryEntry[]> {
+    const result = await this.db.query<{ chrome_id: string; url: string; title: string }>(
+      "SELECT chrome_id, url, title FROM bookmark_inventory",
+    );
+    return result.rows.map((row) => ({
+      chromeId: row.chrome_id,
+      url: row.url,
+      title: row.title,
+    }));
+  }
+
+  async upsertBookmarkInventory(entry: BookmarkInventoryEntry): Promise<void> {
+    await this.db.query(
+      `INSERT INTO bookmark_inventory (chrome_id, url, title)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (chrome_id) DO UPDATE SET url = EXCLUDED.url, title = EXCLUDED.title`,
+      [entry.chromeId, entry.url, entry.title],
+    );
+  }
+
+  async deleteBookmarkInventory(chromeIds: string[]): Promise<void> {
+    for (const chromeId of chromeIds) {
+      await this.db.query("DELETE FROM bookmark_inventory WHERE chrome_id = $1", [chromeId]);
+    }
+  }
+
+  async listDeviceNames(): Promise<DeviceNameEntry[]> {
+    const result = await this.db.query<{ uuid: string; value: string | null }>(
+      `SELECT uuid, value FROM metadata_fields
+       WHERE field = 'device_name' AND deleted = 0 AND value IS NOT NULL`,
+    );
+    return result.rows
+      .filter((row): row is { uuid: string; value: string } => row.value !== null)
+      .map((row) => ({ deviceId: row.uuid, name: row.value }));
+  }
+
+  async setDeviceName(name: string, updatedAt: number): Promise<void> {
+    const deviceId = await this.getDeviceId();
+    await this.upsertField(deviceId, "device_name", name, updatedAt, deviceId, false, true);
   }
 
   async getSyncState(key: string): Promise<string | null> {
